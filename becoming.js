@@ -106,9 +106,11 @@ function stageUp() {
 // ------------------------------------------------------------------ Боб в игре
 function bobSpawn() {
   BOB.on = true;
+  banner('БОБ ПАРР ПРИШЁЛ ЗА ТОБОЙ');
+  if (SFXOK) SFX.play('cut');
   BOB.state = 'enter';
-  BOB.x = -120;
-  BOB.y = groundY();
+  BOB.x = -90;
+  BOB.y = groundY() - 34;
   BOB.t = 0;
   BOB.shootCD = 2.5;
 }
@@ -117,9 +119,9 @@ function updateBob(dt) {
   BOB.t += dt;
   var gy = groundY();
   if (BOB.state === 'enter') {
-    BOB.x += 380 * dt;
+    BOB.x += 620 * dt;
     BOB.alpha = Math.min(1, BOB.alpha + dt * 2);
-    if (BOB.x > VW * 0.78) { BOB.state = 'chase'; BOB.t = 0; }
+    if (BOB.x > VW * 0.72) { BOB.state = 'chase'; BOB.t = 0; }
     return;
   }
   if (BOB.state === 'chase') {
@@ -161,13 +163,13 @@ var __updBecoming = function (dt) {
   var playing = G.mode === 'play';
   if (playing) {
     // постепенное разогревание: каждый раунд стадий = +18% к темпу Марио
-    G.speedMul = Math.min(2.2, 1 + Math.min(1.0, G.time / 45) + UNC.stage * 0.18);
+    G.speedMul = Math.min(2.2, 1 + Math.min(0.8, G.time / 60) + Math.max(0, UNC.stage - 2) * 0.16);
     var decay = 1.0 + UNC.stage * 0.8;
     if (P.iframe > 0 || P.shieldT > 0) decay *= 0.65;
     UNC.v = Math.max(0, UNC.v - decay * dt);
     UNC.sinceCanny += dt;
     if (UNC.sinceCanny > 9) { uncannyAdd(3); UNC.sinceCanny = 0; }
-    if (UNC.stage >= 3 && !BOB.on) bobSpawn();
+    if (UNC.stage >= 1 && !BOB.on) bobSpawn();
     updateBob(dt);
   }
   if (UNC.lastHit > 0) UNC.lastHit -= dt;
@@ -217,12 +219,7 @@ function drawBecomingHUD(c) {
   c.save();
   c.fillStyle = 'rgba(12,10,20,0.72)';
   roundRectPath(c, x - 74, y, 74, 74, 14); c.fill();
-  if (modOn()) drawBob(c, x - 37, y + 64, 0.30, Math.min(6, 2 + UNC.stage));
-  else {
-    c.fillStyle = 'rgba(255,255,255,0.14)';
-    c.font = 'bold 11px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('он', x - 37, y + 34); c.fillText('ждёт', x - 37, y + 48);
-  }
+  drawBob(c, x - 37, y + 64, 0.30, Math.min(6, 2 + UNC.stage));
   c.restore();
   // шкала
   var bw = 74, bh = 8;

@@ -176,13 +176,15 @@ function drawScare(c) {
   var W = CV.width, H = CV.height;
   var p = SCARE.t / SCARE.dur;
   // рванный показ: 1-2 кадра задержки — «дергается», как в меме
-  var flicker = (Math.floor(SCARE.t * 26) % 5 === 0) ? 0.45 : 1;
+  var reduce = (typeof REDUCED !== 'undefined' && REDUCED);
+  var flicker = (!reduce && (Math.floor(SCARE.t * 26) % 5 === 0)) ? 0.45 : 1;
   c.save();
   c.globalAlpha = flicker;
   var sx = SCARE.scale + Math.sin(SCARE.t * 40) * 0.04;
   var sw = Math.min(W * 0.62, H * 0.95) * sx, sh = sw * 1.1;
-  var cx = W / 2 + Math.sin(SCARE.t * 90) * 14;
-  var cy = H / 2 + Math.cos(SCARE.t * 70) * 10;
+  var shakeOn = !(typeof REDUCED !== 'undefined' && REDUCED);
+  var cx = W / 2 + (shakeOn ? Math.sin(SCARE.t * 90) * 14 : 0);
+  var cy = H / 2 + (shakeOn ? Math.cos(SCARE.t * 70) * 10 : 0);
   var img = FACE_IMGS[SCARE.face % FACE_IMGS.length];
   if (img && img.complete && img.naturalWidth) {
     c.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh);

@@ -5,7 +5,7 @@
  * (https://ciklon18.github.io/geroev_jumps_over_mario_game/).
  */
 
-const VERSION = 'v19';
+const VERSION = 'v20';
 const CACHE = `mushroom-game-${VERSION}`;
 
 /** Список предкэшируемых файлов (относительно области регистрации). */
@@ -15,8 +15,6 @@ const PRECACHE_URLS = [
   './game.js',
   './becoming.js',
   './scares.js',
-  './assets/faces.png',
-  './assets/jumpscare.jpg',
   './assets/scare_main.mp3',
   './assets/scare_deep.mp3',
   './assets/meme_intro.mp3',

@@ -236,6 +236,22 @@ function drawCountdown(c) {
   roundRectPath(c, x, y, Math.max(4, w * frac), 8, 4); c.fill();
 }
 
+var GRAIN = { canvas: null, level: -1 };
+function grainTile(level) {
+  if (GRAIN.canvas && GRAIN.level === level) return GRAIN.canvas;
+  var S = 160;
+  var cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  var cx = cv.getContext('2d');
+  var n = 120 + level * 40;
+  for (var i = 0; i < n; i++) {
+    cx.fillStyle = 'rgba(255,255,255,' + (0.04 + Math.random() * 0.07).toFixed(3) + ')';
+    cx.fillRect(Math.random() * S, Math.random() * S, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  GRAIN.canvas = cv; GRAIN.level = level;
+  return cv;
+}
+
 function drawBecomingOverlay(c) {
   var st = UNC.stage;
   if (st === 0 && !UNC.started && !UNC.dark) return;
@@ -258,14 +274,15 @@ function drawBecomingOverlay(c) {
   var dark = Math.min(0.42, 0.10 + st * 0.07);
   c.fillStyle = 'rgba(8,0,4,' + dark.toFixed(3) + ')';
   c.fillRect(0, 0, W, H);
-  // зерно/помехи
+  // зерно: готовый тайл вместо сотен случайных прямоугольников в кадре
   if (st >= 1) {
-    var grains = 60 + st * 30;
-    for (var gi = 0; gi < grains; gi++) {
-      var gx = (gi * 977 + (G.t * 3500 | 0)) % W;
-      var gy2 = (gi * 613 + (G.t * 2100 | 0)) % H;
-      c.fillStyle = 'rgba(255,255,255,' + (0.03 + Math.random() * 0.05).toFixed(3) + ')';
-      c.fillRect(gx, gy2, 2, 2);
+    var tile = grainTile(Math.min(6, st));
+    var ox = (G.t * 220 | 0) % tile.width;
+    var oy = (G.t * 130 | 0) % tile.height;
+    for (var ty = -tile.height; ty < H + tile.height; ty += tile.height) {
+      for (var tx = -tile.width; tx < W + tile.width; tx += tile.width) {
+        c.drawImage(tile, tx + ox, ty + oy);
+      }
     }
   }
   // горизонтальные VHS-полосы

@@ -58,6 +58,16 @@ var G = {
 };
 
 var GRAV = 2100;
+var REDUCED = false;
+try { REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+// --- balance constants (single source of truth) ---
+var BAL = {
+  dashCDTouch: 0.42, dashCDDesk: 0.55,
+  dashTimeTouch: 0.24, dashTimeDesk: 0.19,
+  dashSpeedTouch: 1080, dashSpeedDesk: 980,
+  iframeTouch: 0.42, iframeDesk: 0.34,
+  shieldCD: 2.0, shieldTimeTouch: 0.6, shieldTimeDesk: 0.5
+};
 
 var HERO = new Image();
 HERO.src = 'assets/hero.png';
@@ -247,8 +257,8 @@ function pressButton(id) {
 // ------------------------------------------------------------------ actions
 function doDash(dir) {
   if (G.mode !== 'play' || P.dashCD > 0) return;
-  P.dashCD = TOUCHUI ? 0.42 : 0.55; P.dashT = TOUCHUI ? 0.24 : 0.19; P.dashDir = dir; P.face = dir;
-  P.iframe = TOUCHUI ? 0.42 : 0.34;
+  P.dashCD = TOUCHUI ? BAL.dashCDTouch : BAL.dashCDDesk; P.dashT = TOUCHUI ? BAL.dashTimeTouch : BAL.dashTimeDesk; P.dashDir = dir; P.face = dir;
+  P.iframe = TOUCHUI ? BAL.iframeTouch : BAL.iframeDesk;
   sfx('dash');
   for (var i = 0; i < 9; i++) addPart(P.x - dir * HW() * 0.25, P.y - HH() * rnd(0.2, 0.6), '#dff3ff', rnd(60, 200) * -dir, rnd(-90, 20), rnd(0.25, 0.45), rnd(2, 5));
 }
@@ -265,7 +275,7 @@ function doJump() {
 }
 function doShield() {
   if (G.mode !== 'play' || P.shieldCD > 0) return;
-  P.shieldCD = 2.0; P.shieldT = TOUCHUI ? 0.6 : 0.5;
+  P.shieldCD = BAL.shieldCD; P.shieldT = TOUCHUI ? BAL.shieldTimeTouch : BAL.shieldTimeDesk;
   sfx('shield');
   for (var i = 0; i < 8; i++) addPart(P.x + rnd(-34, 34), P.y - HH() * 0.65, '#ffe9a8', rnd(-70, 70), rnd(-60, 20), 0.3, rnd(2, 4));
 }
@@ -568,7 +578,7 @@ function update(dt) {
 
   if (P.dashT > 0) {
     P.dashT -= dt;
-    P.x += P.dashDir * (TOUCHUI ? 1080 : 980) * dt;
+    P.x += P.dashDir * (TOUCHUI ? BAL.dashSpeedTouch : BAL.dashSpeedDesk) * dt;
     P.tilt = lerp(P.tilt, -P.dashDir * 0.22, Math.min(1, dt * 14));
   } else {
     var steer = HELD.moveDir;
@@ -679,13 +689,21 @@ function draw() {
   CTX.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-function drawSky(c) {
-  var lv = (G.mode === 'menu') ? 1 : (G.level || 1);
+var SKY_CACHE = {};
+function skyGradient(c, lv) {
+  var key = lv + '@' + Math.round(VH);
+  if (SKY_CACHE[key]) return SKY_CACHE[key];
   var g = c.createLinearGradient(0, 0, 0, VH);
   if (lv === 1) { g.addColorStop(0, '#5fc4f5'); g.addColorStop(0.65, '#b7e8ff'); g.addColorStop(1, '#e9f7d8'); }
   else if (lv === 2) { g.addColorStop(0, '#152244'); g.addColorStop(0.6, '#2c4270'); g.addColorStop(1, '#6a7f8f'); }
   else { g.addColorStop(0, '#2a0d1b'); g.addColorStop(0.55, '#6d1f2c'); g.addColorStop(1, '#c0522b'); }
-  c.fillStyle = g; c.fillRect(0, 0, VW, VH);
+  SKY_CACHE[key] = g;
+  return g;
+}
+
+function drawSky(c) {
+  var lv = (G.mode === 'menu') ? 1 : (G.level || 1);
+  c.fillStyle = skyGradient(c, lv); c.fillRect(0, 0, VW, VH);
 
   var i;
   if (lv === 1) {
@@ -936,8 +954,8 @@ function drawHUD(c) {
   }
 
   var cw = 118, ch = 20, cx = 960 - pad - cw;
-  drawCooldown(c, cx, pad + 4, cw, ch, 1 - P.dashCD / (TOUCHUI ? 0.42 : 0.55), 'ДЭШ ← →', '#7fd8ff');
-  drawCooldown(c, cx, pad + 30, cw, ch, 1 - P.shieldCD / 2.0, 'ШЛЯПКА S', '#ffe9a8');
+  drawCooldown(c, cx, pad + 4, cw, ch, 1 - P.dashCD / (TOUCHUI ? BAL.dashCDTouch : BAL.dashCDDesk), 'ДЭШ ← →', '#7fd8ff');
+  drawCooldown(c, cx, pad + 30, cw, ch, 1 - P.shieldCD / BAL.shieldCD, 'ШЛЯПКА S', '#ffe9a8');
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
 }
 

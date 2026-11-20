@@ -4,10 +4,12 @@
 'use strict';
 
 var MODE = { mode: 'base', storyEnd: false };   // base | becoming
-var UNC = { v: 0, stage: 0, peak: 0, memory: 0, hud: 0, lastHit: 0, streak: 0, sinceCanny: 0, flash: 0, hint: 0, started: false, floor: 0 };
+var UNC = { v: 0, stage: 0, peak: 0, memory: 0, hud: 0, lastHit: 0, streak: 0, sinceCanny: 0, flash: 0, hint: 0, started: false, floor: 0, dark: false };
 var BOB = { on: false, x: 0, y: 0, state: 'hidden', t: 0, alpha: 0, grab: 0, face: 0, shootCD: 3 };
 var STAGES = 7;
-var BECOMING_DELAY = 10;   // seconds of play before Bob, the music and the horror start
+var DARK_DELAY = 5;        // soundtrack + the world starts going dark
+var BECOMING_DELAY = 10;   // Bob, the stinger and the first jumpscare
+var BOB_ALT = 290;         // how high Bob flies above the ground
 var STAGE_TRACK = ['canny1', 'unc1', 'unc2', 'unc3', 'unc4', 'unc4', 'unc4'];
 var STAGE_NAME = ['ТЫ В ПОРЯДКЕ', 'ВСЁ ХОРОШО', 'ЧТО-ТО НЕ ТАК', 'ПОГЛУБЖЕ', 'ОН ВИДИТ ТЕБЯ', 'ЭТО НЕ ПАПА', 'БЕГИ ПРОСТО БЕГИ'];
 
@@ -113,7 +115,7 @@ function bobSpawn() {
   if (SFXOK) if (SFXOK) SFX.play('cut');
   BOB.state = 'enter';
   BOB.x = -90;
-  BOB.y = groundY() - 34;
+  BOB.y = groundY() - BOB_ALT;
   BOB.t = 0;
   BOB.shootCD = 2.5;
 }
@@ -122,6 +124,7 @@ function updateBob(dt) {
   BOB.t += dt;
   var gy = groundY();
   if (BOB.state === 'enter') {
+    BOB.y = lerp(BOB.y, gy - BOB_ALT, Math.min(1, dt * 3));
     BOB.x += 620 * dt;
     BOB.alpha = Math.min(1, BOB.alpha + dt * 2);
     if (BOB.x > VW * 0.72) { BOB.state = 'chase'; BOB.t = 0; }
@@ -132,22 +135,24 @@ function updateBob(dt) {
     var targetX = P.x + VW * 0.30;
     BOB.x = lerp(BOB.x, targetX, Math.min(1, dt * 2.2));
     if (BOB.x - VW + 30 > P.x) BOB.x = P.x + 120;   // never inside the hero
-    BOB.y = gy;
+    BOB.hover = (BOB.hover || 0) + dt;
+    BOB.y = gy - BOB_ALT - Math.sin(BOB.hover * 1.7) * 26;   // high above the ground
     BOB.alpha = 1;
-    if (Math.abs(BOB.x - P.x) < 120 && Math.random() < dt * 2) {
+    if (Math.abs(BOB.x - P.x) < 160 && Math.random() < dt * 1.4) {
       BOB.state = 'shoot';
     }
     if (UNC.v > 92 && Math.random() < dt * 0.8) { BOB.state = 'grab'; BOB.grab = 0; }
     return;
   }
   if (BOB.state === 'shoot') {
+    BOB.armed = (BOB.armed || 0) + dt;   // 0.45 s of wind-up: readable, dodgeable
     // «глазной луч»: надо перепрыгнуть или дэшнуть под луч
-    BOB.y = gy - 120 - Math.sin(BOB.t * 3) * 30;
+    BOB.y = gy - BOB_ALT - 40 - Math.sin(BOB.t * 3) * 24;
     BOB.x = lerp(BOB.x, VW + 160, Math.min(1, dt * 1.4));
     if (Math.random() < dt * 14) {
       addPart(BOB.x - 20, BOB.y - 40, '#ff4a4a', rnd(-120, -260), rnd(-30, 30), 0.6, rnd(3, 6), 0);
     }
-    if (Math.abs(BOB.x - P.x) < 70 && Math.abs(BOB.y - (P.y - HH() * 0.4)) < 110 && P.shieldT <= 0 && P.iframe <= 0) {
+    if (BOB.armed > 0 && Math.abs(BOB.x - P.x) < 56 && Math.abs(BOB.y - (P.y - HH() * 0.4)) < 84 && P.shieldT <= 0 && P.iframe <= 0) {
       gameOver();
     }
     if (BOB.x > VW + 150) { BOB.state = 'chase'; BOB.t = 0; }
@@ -177,10 +182,16 @@ var __updBecoming = function (dt) {
     UNC.v = Math.max(0, UNC.v - decay * dt);
     UNC.sinceCanny += dt;
     if (UNC.sinceCanny > 9) { uncannyAdd(3); UNC.sinceCanny = 0; }
-    // ---- the 10-second timer: from here the world starts changing ----
+    // ---- 5 s: the bright theme dies and the scene starts to darken ----
+    if (!UNC.dark && G.time >= DARK_DELAY) {
+      UNC.dark = true;
+      if (SFXOK) { try { SFX.music('unc1'); } catch (e) {} }
+      G.shake = Math.max(G.shake, 5);
+      banner('СВЕТ ГАСНЕТ');
+    }
+    // ---- 10 s: Bob arrives, the scream and the first face ----
     if (!UNC.started && G.time >= BECOMING_DELAY) {
       UNC.started = true;
-      SFX.music('unc1');   // the soundtrack switches first: the bright theme dies right here
       G.shake = Math.max(G.shake, 8);
       banner('10 СЕКУНД ПОЗАДИ · ОН ИДЁТ');
     }
@@ -191,6 +202,7 @@ var __updBecoming = function (dt) {
       if (typeof triggerScare === 'function') triggerScare(1);   // the first face fills the screen
       if (!BOB.on) bobSpawn();
       P.iframe = Math.max(P.iframe, 2.2);   // grace right after the reveal
+      BOB.armed = 0;                        // and a wind-up before the first beam
     }
     updateBob(dt);
   }
@@ -201,8 +213,9 @@ var __updBecoming = function (dt) {
 // ------------------------------------------------------------------ хук в draw: оверлей
 function drawCountdown(c) {
   if (!modOn() || UNC.started || G.mode !== 'play') return;
-  var left = Math.max(0, BECOMING_DELAY - G.time);
-  var frac = clamp(G.time / BECOMING_DELAY, 0, 1);
+  var target = UNC.dark ? BECOMING_DELAY : DARK_DELAY;
+  var left = Math.max(0, target - G.time);
+  var frac = clamp(G.time / target, 0, 1);
   c.save();
   c.textAlign = 'center'; c.textBaseline = 'middle';
   var pulse = 1 + Math.sin(G.t * 6) * 0.05;
@@ -210,9 +223,10 @@ function drawCountdown(c) {
   c.scale(pulse, pulse);
   c.font = 'bold 26px system-ui, sans-serif';
   c.fillStyle = 'rgba(0,0,0,0.45)';
-  c.fillText('БОБ ПРИДЁТ ЧЕРЕЗ ' + Math.ceil(left), 1, 1);
-  c.fillStyle = frac > 0.7 ? '#ff8b6b' : '#ffffff';
-  c.fillText('БОБ ПРИДЁТ ЧЕРЕЗ ' + Math.ceil(left), 0, 0);
+  var label = (UNC.dark ? 'БОБ ПРИДЁТ ЧЕРЕЗ ' : 'ТЕМНЕЕТ ЧЕРЕЗ ') + Math.ceil(left);
+  c.fillText(label, 1, 1);
+  c.fillStyle = UNC.dark ? '#ff5f5f' : (frac > 0.7 ? '#ff8b6b' : '#ffffff');
+  c.fillText(label, 0, 0);
   c.restore();
   // progress bar
   var w = 240, x = (CV.width - w) / 2, y = 96;
@@ -224,17 +238,18 @@ function drawCountdown(c) {
 
 function drawBecomingOverlay(c) {
   var st = UNC.stage;
-  if (st === 0 && !UNC.started) return;
+  if (st === 0 && !UNC.started && !UNC.dark) return;
   var W = CV.width, H = CV.height;
   // красная вигнетка — есть с первой же стадии
-  var vig = Math.min(0.78, 0.30 + st * 0.09);
+  if (UNC.dark && st < 1) st = 1;
+  var vig = Math.min(0.85, 0.40 + (st - 1) * 0.10);
   var g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.22, W / 2, H / 2, Math.max(W, H) * 0.72);
   g.addColorStop(0, 'rgba(0,0,0,0)');
   g.addColorStop(0.55, 'rgba(40,0,0,' + (vig * 0.45).toFixed(3) + ')');
   g.addColorStop(1, 'rgba(60,0,0,' + vig.toFixed(3) + ')');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   // обесцвечивание = серый налёт, тяжелеет со стадией
-  var gray = Math.min(0.30, 0.10 + st * 0.05);
+  var gray = Math.min(0.42, 0.24 + (st - 1) * 0.05);
   c.fillStyle = 'rgba(70,70,80,' + gray.toFixed(3) + ')';
   c.globalCompositeOperation = 'saturation';
   c.fillRect(0, 0, W, H);
@@ -304,7 +319,7 @@ function modOn() { return MODE.mode === 'becoming'; }
 function leaveBecoming() {
   MODE.mode = 'base';
   BOB.on = false; BOB.state = 'hidden';
-  UNC.v = 0; UNC.stage = 0;
+  UNC.v = 0; UNC.stage = 0; UNC.dark = false; UNC.started = false; UNC.floor = 0;
   if (SFXOK) { try { SFX.music('canny1'); } catch (e) {} }
   buildButtons();
 }
@@ -313,7 +328,7 @@ function startBecoming() {
   MODE.mode = 'becoming';
   UNC.v = 0; UNC.stage = 0; UNC.peak = 0; UNC.hud = 0; UNC.lastHit = 0; UNC.streak = 0; UNC.flash = 0; UNC.sinceCanny = 0; UNC.memory = STAGES - 1;
   BOB.on = false; BOB.state = 'hidden'; BOB.alpha = 0; BOB.grab = 0;
-  UNC.started = false; UNC.floor = 0;
+  UNC.started = false; UNC.floor = 0; UNC.dark = false;
   if (SFXOK) SFX.music('canny1');
   startGame();
   banner('BECOMING · ТЫ В ПОРЯДКЕ');

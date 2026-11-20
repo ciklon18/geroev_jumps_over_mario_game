@@ -1,0 +1,9 @@
+# QA / debug scratch (не коммитим)
+_sim_*
+_mqa_*
+*.png.tmp
+.shots/
+
+# OS / editor
+.DS_Store
+Thumbs.db

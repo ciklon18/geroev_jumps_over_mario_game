@@ -79,7 +79,7 @@ var M = {
   state: 'run', timer: 0.8, jumps: 0, maxJumps: 1, anim: 0,
   feint: false, feintShown: false, speed: 200
 };
-var MARIO_W = 54;
+var MARIO_W = 40;
 
 // ------------------------------------------------------------------ arrays
 var parts = [], pops = [], spores = [], powerups = [], clouds = [];
@@ -88,8 +88,35 @@ var spawnTimer = 0, nextSpore = 0, nextPower = 14;
 
 // ------------------------------------------------------------------- input
 var keys = Object.create(null);
-// physical buttons currently held with a finger (touch devices)
+var TOUCHUI = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 var HELD = { left: false, right: false, jump: false, shield: false, moveDir: 0 };
+var pointerButton = {};
+function clearHolds() { HELD.left = HELD.right = HELD.jump = HELD.shield = false; HELD.moveDir = 0; pointerButton = {}; }
+function beginHold(id) {
+  HELD[id] = true;
+  if (id === 'left' || id === 'right') { HELD.moveDir = id === 'left' ? -1 : 1; doDash(HELD.moveDir); }
+  else if (id === 'jump') doJump();
+  else if (id === 'shield') doShield();
+}
+function endHold(id) {
+  if (id !== 'left' && id !== 'right' && id !== 'jump' && id !== 'shield') return;
+  HELD[id] = false;
+  if ((id === 'left' || id === 'right') && HELD.moveDir === (id === 'left' ? -1 : 1)) {
+    var other = id === 'left' ? 'right' : 'left';
+    HELD.moveDir = HELD[other] ? (other === 'left' ? -1 : 1) : 0;
+  }
+}
+function updateHeld() {
+  if (HELD.moveDir !== 0 && P.dashCD <= 0 && P.dashT <= 0) doDash(HELD.moveDir);
+  if (HELD.jump && !P.onGround && P.vy > 60 && P.jumps < P.maxJumps) doJump();
+}
+function buttonAt(u) {
+  for (var i = 0; i < buttons.length; i++) {
+    var b = buttons[i];
+    if (u.x >= b.x && u.x <= b.x + b.w && u.y >= b.y && u.y <= b.y + b.h) return b.id;
+  }
+  return null;
+}
 var touch = { active: false, sx: 0, sy: 0, t0: 0, fired: false, id: null };
 // on-screen buttons only for phones / tablets and touch laptops
 var TOUCHUI = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -125,39 +152,6 @@ function toUI(clientX, clientY) {
   return { x: (ux - UOX) / US, y: (uy - UOY) / US };
 }
 
-var pointerButton = {};   // pointerId -> button id
-
-function beginHold(id) {
-  var now = performance.now();
-  HELD[id] = true;
-  HELD[id + 'At'] = now;
-  if (id === 'left' || id === 'right') {
-    HELD.moveDir = id === 'left' ? -1 : 1;
-    doDash(HELD.moveDir);          // first press: instant reaction
-  } else if (id === 'jump') {
-    doJump();
-    HELD.jumpQueued = false;
-  } else if (id === 'shield') {
-    doShield();
-  }
-}
-function endHold(id) {
-  if (id !== 'left' && id !== 'right' && id !== 'jump' && id !== 'shield') return;
-  HELD[id] = false;
-  if ((id === 'left' || id === 'right') && HELD.moveDir === (id === 'left' ? -1 : 1)) {
-    var other = id === 'left' ? 'right' : 'left';
-    HELD.moveDir = HELD[other] ? (other === 'left' ? -1 : 1) : 0;
-  }
-}
-// called every frame: repeated dashes while a direction is held, auto-jump (coyote) when jump is held
-function updateHeld(dt) {
-  var now = performance.now();
-  if (HELD.moveDir !== 0) {
-    if (P.dashCD <= 0 && P.dashT <= 0) doDash(HELD.moveDir);
-  }
-  if (HELD.jump && !P.onGround && P.vy > 60 && P.jumps < P.maxJumps) doJump();
-}
-
 CV.addEventListener('pointerdown', function (e) {
   if (SFXOK) { try { SFX.unlock(); } catch (err) {} }
   var u = toUI(e.clientX, e.clientY);
@@ -174,6 +168,7 @@ CV.addEventListener('pointerdown', function (e) {
     beginHold(bid);
     return;
   }
+  if (hitAnyButton(u)) return;
   touch.active = true; touch.id = e.pointerId;
   touch.sx = e.clientX; touch.sy = e.clientY; touch.t0 = performance.now(); touch.fired = false;
 }, { passive: true });
@@ -189,11 +184,7 @@ CV.addEventListener('pointermove', function (e) {
 }, { passive: true });
 
 function endTouch(e) {
-  if (e && pointerButton[e.pointerId]) {
-    endHold(pointerButton[e.pointerId]);
-    delete pointerButton[e.pointerId];
-    return;
-  }
+  if (e && pointerButton[e.pointerId]) { endHold(pointerButton[e.pointerId]); delete pointerButton[e.pointerId]; return; }
   if (!touch.active) return;
   touch.active = false;
   if (!touch.fired && performance.now() - touch.t0 < 420) doJump();
@@ -219,16 +210,14 @@ function buildButtons() {
     buttons.push({ id: 'jump', x: 836, y: 404, w: 104, h: 120 });
   }
 }
-function buttonAt(u) {
+function hitAnyButton(u) {
   for (var i = 0; i < buttons.length; i++) {
     var b = buttons[i];
-    if (u.x >= b.x && u.x <= b.x + b.w && u.y >= b.y && u.y <= b.y + b.h) return b.id;
+    if (u.x >= b.x && u.x <= b.x + b.w && u.y >= b.y && u.y <= b.y + b.h) {
+      pressButton(b.id);
+      return true;
+    }
   }
-  return null;
-}
-function hitAnyButton(u) {
-  var id = buttonAt(u);
-  if (id) { pressButton(id); return true; }
   return false;
 }
 function pressButton(id) {
@@ -274,8 +263,6 @@ function toggleMute() {
 }
 
 // ------------------------------------------------------------- game control
-function clearHolds() { HELD.left = HELD.right = HELD.jump = HELD.shield = false; HELD.moveDir = 0; pointerButton = {}; }
-
 function startGame() {
   clearHolds();
   if (SFXOK) { try { SFX.unlock(); SFX.music(true); } catch (e) {} }
@@ -343,15 +330,7 @@ function marioSpawn() {
   M.jumps = 0;
   M.feint = G.level >= 3 && Math.random() < 0.45;
   M.feintShown = false;
-  M.tried = false;   // one dive per run
   M.face = 1;
-}
-
-function steerVelocity() {
-  var v = 0;
-  if (keys['ArrowRight'] || keys['d'] || keys['D'] || keys['в']) v += 430;
-  if (keys['ArrowLeft'] || keys['a'] || keys['A'] || keys['ф']) v -= 430;
-  return v;
 }
 
 function airtimeLeft() {
@@ -362,25 +341,21 @@ function airtimeLeft() {
 // Mario decides mid-run: he aims at where the mushroom will be when he lands.
 function startJump(p) {
   var g = GRAV * 0.9;
-  // Where the mushroom will be if it keeps doing what it does right now.
-  var lead = (HELD.moveDir * 430) + steerVelocity();   // where you are walking, nothing more
-  var aimX = P.x + clamp(lead * 0.10, -34, 34);
-  // Flight time = time to cover the gap to the landing spot.
-  var tAir = clamp(Math.abs(aimX - M.x) / Math.max(150, p.speed), 0.30, 1.05);
-  // pick the vertical speed so that the descent crosses the head height exactly at the landing point
-  var H = Math.max(90, (P.y - HH() * 0.4) - groundY());    // height of the head above the ground
-  var apex = HH() * 0.8;                                  // he clears the cap on the way in
-  var early = 0.6 * tAir;                                  // reaches the apex at 60% of the flight
-  var vv = (apex + 0.5 * g * early * early) / early;       // velocity that gives that apex
-  vv = Math.max(vv, (H + 0.5 * g * tAir * tAir) / Math.max(0.15, tAir));
-  // Horizontal speed is locked now (commitment): a dash after take-off breaks the aim for good.
-  var aimVx = clamp((aimX - M.x) / tAir, -p.speed * 2.2, p.speed * 2.2);
-  // Vertical speed from the flight time, then capped so he never out-jumps the screen.
+  var lead = P.dashT > 0 ? P.dashDir * 400 * P.dashT : 0;
+  var aimX = P.x + lead * 0.5;
+  var tAir = 1.0;
+  for (var i = 0; i < 3; i++) {
+    var dx = Math.abs(aimX - M.x);
+    tAir = clamp(dx / Math.max(130, M.vx || p.speed), 0.28, 1.2);
+    if (0.5 * g * tAir * tAir > 30) break;
+    aimX = (aimX + P.x) / 2;
+  }
+  var H = Math.max(90, (P.y - HH() * 0.4) - groundY());
+  var apex = HH() * 0.8;
+  var early = 0.6 * tAir;
+  var vv = Math.max((apex + 0.5 * g * early * early) / early, (H + 0.5 * g * tAir * tAir) / Math.max(0.15, tAir));
   var v = -clamp(vv, p.jumpV * 0.45, p.jumpV * 0.82);
-  M.airTime = 2 * Math.abs(v) / g;
-  M.aimX = aimX;
   M.maxJumps = 2;
-  M.aimVx = aimVx;
   M.vy = v; M.state = 'air'; M.jumps = 1; M.onGround = false;
   M.timer = 0;
   sfx('mjump');
@@ -396,14 +371,13 @@ function updateMario(dt) {
   if (M.state === 'run') {
     M.vx += (p.speed - M.vx) * Math.min(1, dt * 3.2);
     var gap = P.x - M.x;
-    if (gap < 40) { M.state = 'run'; M.timer = 0.5; }   // cannot stomp a mushroom he is already inside of
     if (gap > 30 && gap < VW * 0.8) {
-      var timeToReach = Math.max(0, (gap - 300) / Math.max(120, M.vx || p.speed));
+      var timeToReach = Math.max(0.05, gap / Math.max(120, M.vx || p.speed));
       if (M.feint && !M.feintShown && gap < 340) {
         M.feintShown = true;
         M.state = 'feint'; M.timer = 0.26; sfx('feint');
-      } else if (M.timer <= 0 && timeToReach <= 0.001) {
-        startJump(p); M.tried = true;
+      } else if (M.timer <= 0 && timeToReach < 0.40 + Math.random() * 0.12) {
+        startJump(p);
       }
     }
   } else if (M.state === 'feint') {
@@ -413,13 +387,12 @@ function updateMario(dt) {
       else { M.state = 'run'; M.timer = rnd(0.1, 0.3); }
     }
   } else if (M.state === 'air') {
-    // commitment: his horizontal speed is locked at take-off, only a gentle correction mid-air
-    M.vx += (M.aimVx - M.vx) * Math.min(1, dt * 1.2);
+    M.vx += (p.speed * 1.12 - M.vx) * Math.min(1, dt * 3);
   }
 
   M.vy += GRAV * 0.9 * dt;
   M.x += M.vx * dt;
-  // no clamp: he runs past the screen edge and the watchdog recycles him
+  if (M.x > VW + 80) { M.x = VW + 80; M.vx = Math.min(M.vx, 0); }
   M.y += M.vy * dt;
 
   if (M.y >= gy) {
@@ -437,40 +410,32 @@ function updateMario(dt) {
 
   M.face = M.x > P.x ? -1 : 1;
 
-  // ---- collision: Mario strides THROUGH the mushroom.
-  // Rule: the hit is LOCKED while he is airborne inside the cap column. From the moment of the lock
-  // the mushroom has a short window; any dash or hat-hide inside it cancels the hit for good.
-  // Sitting still (or being too slow) gets you squashed.
+  // ---- collision: one rule, no stacked patches.
+  // Mario's BODY (a narrow box around his torso) overlapping the mushroom's head box kills you,
+  // unless you are dashing or hiding under the hat (invulnerability windows).
   var r = playerRect();
-  if (M.state === 'stomp') {
+  var mx = M.x;
+  var top = M.y - 92;              // his torso, not the whole sprite
+  var bottom = M.y;                // his feet
+  var bodyOverlap = mx + MARIO_W * 0.22 > r.x && mx - MARIO_W * 0.22 < r.x + r.w;
+  var headOverlap = bottom > r.y && top < r.y + r.h * 0.8;
+  if (bodyOverlap && headOverlap) {
     if (P.iframe > 0 || P.shieldT > 0) {
-      M.state = 'air'; M.vy = -520; M.onGround = false; M.jumps = 2;
-      G.score += 40; popup(P.x, r.y - 10, 'УВОРОТ +40', '#9fe8ff'); sfx('stomp');
-      P.shieldT = 0;
-      for (var jj = 0; jj < 10; jj++) addPart(P.x, r.y, '#9fe8ff', rnd(-200, 200), rnd(-200, 30), 0.4, 3);
-    } else {
-      M.timer -= dt;
-      if (M.timer <= 0) { gameOver(); return; }
-    }
-  } else {
-    var dxH = M.x - (r.x + r.w / 2);
-    var inColumn = Math.abs(dxH) < r.w * 0.36;
-    var marioMid = M.y + 55;   // mid-body of the sprite
-    var atHead = marioMid > r.y - 70 && marioMid < r.y + r.h * 0.9 && M.vy > 120;
-    if (inColumn && atHead) {
-      if (P.iframe > 0 || P.shieldT > 0) {
-        M.vy = -520; M.onGround = false; M.state = 'air'; M.jumps = 2;
-        G.score += 40;
-        popup(P.x, r.y - 6, P.shieldT > 0 ? 'ПОД ШЛЯПКУ +40' : 'УВОРОТ +40', '#9fe8ff');
-        sfx('stomp'); G.shake = 6;
-        P.shieldT = 0;
-        for (var j2 = 0; j2 < 12; j2++) addPart(P.x, r.y, '#9fe8ff', rnd(-220, 220), rnd(-220, 40), 0.45, 3);
-      } else if (M.onGround) {
-        gameOver(); return;
-      } else {
-        M.state = 'stomp'; M.timer = TOUCHUI ? 0.26 : 0.22;
+      M.vy = -640; M.onGround = false; M.state = 'air'; M.jumps = 2;
+      M.x += (M.x > P.x ? 22 : -22);
+      G.score += 40;
+      if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) {
+        uncannyAdd(-4);
+        if (UNC.stage <= 2) { UNC.streak++; if (UNC.streak >= 5) { uncannyAdd(-16); UNC.streak = 0; } }
       }
+      popup(P.x, r.y - 6, P.shieldT > 0 ? 'ПОД ШЛЯПКУ +40' : 'УВОРОТ +40', '#9fe8ff');
+      sfx('stomp'); G.shake = 6;
+      P.shieldT = 0;
+      for (var j = 0; j < 12; j++) addPart(P.x, r.y, '#9fe8ff', rnd(-220, 220), rnd(-220, 40), 0.45, 3);
+      return;
     }
+    if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) { uncannyAdd(30); }
+    gameOver();
   }
 }
 
@@ -586,8 +551,7 @@ function update(dt) {
     var steer = HELD.moveDir;
     if (keys['ArrowLeft'] || keys['a'] || keys['A'] || keys['ф']) steer -= 1;
     if (keys['ArrowRight'] || keys['d'] || keys['D'] || keys['в']) steer += 1;
-    steer = clamp(steer, -1, 1);
-    P.x += steer * 430 * dt;
+    P.x += clamp(steer, -1, 1) * 430 * dt;
     P.tilt = lerp(P.tilt, steer * 0.1, Math.min(1, dt * 10));
   }
 
@@ -609,10 +573,11 @@ function update(dt) {
   if (P.x < margin) { P.x = margin; if (P.dashT > 0) P.dashT = 0; }
   if (P.x > VW - margin) { P.x = VW - margin; if (P.dashT > 0) P.dashT = 0; }
 
-  updateHeld(dt);
+  updateHeld();
   updateMario(dt);
   // watchdog: Mario hovering far right for >3 s means the run is stuck — reset him
-  if (M.x > VW + 40) { M.x = -90; M.vx = 0; M.state = 'run'; M.timer = 0.2; }   // off-screen right: new run
+  if (M.x > VW - 60 && M.state !== 'air') { M.idleT = (M.idleT || 0) + dt; } else { M.idleT = 0; }
+  if (M.idleT > 3) { M.idleT = 0; M.x = -90; M.vx = 0; M.state = 'run'; M.timer = 0.2; }
   updateSpawns(dt);
 
   G.score += dt * 10 * G.speedMul;
@@ -786,7 +751,7 @@ function drawMario(c) {
   var x = M.x, y = M.y - bob;
   c.save();
   c.translate(x, y);
-  c.scale(M.face * 1.36, 1.36);
+  c.scale(M.face * 1.12, 1.12);
 
   c.fillStyle = 'rgba(0,0,0,0.22)';
   c.beginPath(); c.ellipse(0, (gy - y) + 2, 26, 8, 0, 0, TAU); c.fill();

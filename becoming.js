@@ -4,9 +4,10 @@
 'use strict';
 
 var MODE = { mode: 'base', storyEnd: false };   // base | becoming
-var UNC = { v: 0, stage: 0, peak: 0, memory: 0, hud: 0, lastHit: 0, streak: 0, sinceCanny: 0, flash: 0, hint: 0 };
+var UNC = { v: 0, stage: 0, peak: 0, memory: 0, hud: 0, lastHit: 0, streak: 0, sinceCanny: 0, flash: 0, hint: 0, started: false, floor: 0 };
 var BOB = { on: false, x: 0, y: 0, state: 'hidden', t: 0, alpha: 0, grab: 0, face: 0, shootCD: 3 };
 var STAGES = 7;
+var BECOMING_DELAY = 10;   // seconds of play before Bob, the music and the horror start
 var STAGE_TRACK = ['canny1', 'canny2', 'unc1', 'unc2', 'unc3', 'unc4', 'unc4'];
 var STAGE_NAME = ['ТЫ В ПОРЯДКЕ', 'ВСЁ ХОРОШО', 'ЧТО-ТО НЕ ТАК', 'ПОГЛУБЖЕ', 'ОН ВИДИТ ТЕБЯ', 'ЭТО НЕ ПАПА', 'БЕГИ ПРОСТО БЕГИ'];
 
@@ -86,7 +87,9 @@ function uncannyAdd(d) {
   if (UNC.v > UNC.peak) UNC.peak = UNC.v;
   var target = Math.min(STAGES - 1, Math.floor(UNC.v / (100 / (STAGES - 1)) + 0.0001));
   target = Math.min(target, UNC.memory);
+  if (UNC.started && target < UNC.floor) target = UNC.floor;   // the timer sets a floor
   if (d < 0) UNC.streak = 0;
+  if (!UNC.started) target = 0;   // nothing scary before the 10-second mark
   while (UNC.stage < target) { UNC.stage++; stageUp(); }
   while (UNC.stage > target) { UNC.stage--; SFX.play('canny'); UNC.flash = 1; G.score += 20; popup(P.x, P.y - HH() - 20, 'CANNY +20', '#9fe8ff'); }
 }
@@ -164,12 +167,24 @@ var __updBecoming = function (dt) {
   if (playing) {
     // постепенное разогревание: каждый раунд стадий = +18% к темпу Марио
     G.speedMul = Math.min(2.2, 1 + Math.min(0.8, G.time / 60) + Math.max(0, UNC.stage - 2) * 0.16);
-    var decay = 1.0 + UNC.stage * 0.8;
+    var decay = UNC.started ? 0.35 + UNC.stage * 0.35 : 1.0 + UNC.stage * 0.8;
     if (P.iframe > 0 || P.shieldT > 0) decay *= 0.65;
     UNC.v = Math.max(0, UNC.v - decay * dt);
     UNC.sinceCanny += dt;
     if (UNC.sinceCanny > 9) { uncannyAdd(3); UNC.sinceCanny = 0; }
-    if (modOn() && UNC.stage >= 1 && !BOB.on) bobSpawn();
+    // ---- the 10-second timer: from here the world starts changing ----
+    if (!UNC.started && G.time >= BECOMING_DELAY) {
+      UNC.started = true;
+      SFX.music('unc1');   // the soundtrack switches first: the bright theme dies right here
+      G.shake = Math.max(G.shake, 8);
+      banner('10 СЕКУНД ПОЗАДИ · ОН ИДЁТ');
+    }
+    if (UNC.started && !BOB.on) {
+      UNC.floor = 1;
+      if (UNC.stage < 1) uncannyAdd(16);   // the first stage of horror starts the moment the timer ends
+      if (SFXOK) { try { SFX.play('stinger'); } catch (e) {} }
+      if (!BOB.on) bobSpawn();
+    }
     updateBob(dt);
   }
   if (UNC.lastHit > 0) UNC.lastHit -= dt;
@@ -177,21 +192,63 @@ var __updBecoming = function (dt) {
 };
 
 // ------------------------------------------------------------------ хук в draw: оверлей
+function drawCountdown(c) {
+  if (!modOn() || UNC.started || G.mode !== 'play') return;
+  var left = Math.max(0, BECOMING_DELAY - G.time.toFixed(1));
+  var frac = clamp(G.time / BECOMING_DELAY, 0, 1);
+  c.save();
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  var pulse = 1 + Math.sin(G.t * 6) * 0.05;
+  c.translate(CV.width / 2, 74);
+  c.scale(pulse, pulse);
+  c.font = 'bold 26px system-ui, sans-serif';
+  c.fillStyle = 'rgba(0,0,0,0.45)';
+  c.fillText('БОБ ПРИДЁТ ЧЕРЕЗ ' + Math.ceil(left), 1, 1);
+  c.fillStyle = frac > 0.7 ? '#ff8b6b' : '#ffffff';
+  c.fillText('БОБ ПРИДЁТ ЧЕРЕЗ ' + Math.ceil(left), 0, 0);
+  c.restore();
+  // progress bar
+  var w = 240, x = (CV.width - w) / 2, y = 96;
+  c.fillStyle = 'rgba(0,0,0,0.35)';
+  roundRectPath(c, x, y, w, 8, 4); c.fill();
+  c.fillStyle = 'rgba(255,90,60,0.9)';
+  roundRectPath(c, x, y, Math.max(4, w * frac), 8, 4); c.fill();
+}
+
 function drawBecomingOverlay(c) {
   var st = UNC.stage;
-  if (st === 0) return;
+  if (st === 0 && !UNC.started) return;
+  var ramp = UNC.started ? 1 : 0;
   var W = CV.width, H = CV.height;
-  // вигнетка
+  // красная вигнетка — есть с первой же стадии
+  var vig = Math.min(0.78, 0.30 + st * 0.09);
+  var g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.22, W / 2, H / 2, Math.max(W, H) * 0.72);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(0.55, 'rgba(40,0,0,' + (vig * 0.45).toFixed(3) + ')');
+  g.addColorStop(1, 'rgba(60,0,0,' + vig.toFixed(3) + ')');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // обесцвечивание = серый налёт, тяжелеет со стадией
+  var gray = Math.min(0.30, 0.10 + st * 0.05);
+  c.fillStyle = 'rgba(70,70,80,' + gray.toFixed(3) + ')';
+  c.globalCompositeOperation = 'saturation';
+  c.fillRect(0, 0, W, H);
+  c.globalCompositeOperation = 'source-over';
+  // общее затемнение растёт со стадией
+  var dark = Math.min(0.42, 0.10 + st * 0.07);
+  c.fillStyle = 'rgba(8,0,4,' + dark.toFixed(3) + ')';
+  c.fillRect(0, 0, W, H);
+  // зерно/помехи
   if (st >= 1) {
-    var g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.28, W / 2, H / 2, Math.max(W, H) * 0.72);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(20,0,0,' + (0.18 + st * 0.09).toFixed(2) + ')');
-    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    var grains = 60 + st * 30;
+    for (var gi = 0; gi < grains; gi++) {
+      var gx = (gi * 977 + (G.t * 3500 | 0)) % W;
+      var gy2 = (gi * 613 + (G.t * 2100 | 0)) % H;
+      c.fillStyle = 'rgba(255,255,255,' + (0.03 + Math.random() * 0.05).toFixed(3) + ')';
+      c.fillRect(gx, gy2, 2, 2);
+    }
   }
-  // затемнение
-  if (st >= 3) { c.fillStyle = 'rgba(10,0,5,' + (0.05 * (st - 2)).toFixed(2) + ')'; c.fillRect(0, 0, W, H); }
   // горизонтальные VHS-полосы
-  if (st >= 4) {
+  if (st >= 2) {
     c.fillStyle = 'rgba(255,255,255,0.05)';
     for (var i = 0; i < 8; i++) {
       var y = ((G.t * 260 * (i + 1)) % H);
@@ -250,6 +307,7 @@ function startBecoming() {
   MODE.mode = 'becoming';
   UNC.v = 0; UNC.stage = 0; UNC.peak = 0; UNC.hud = 0; UNC.lastHit = 0; UNC.streak = 0; UNC.flash = 0; UNC.sinceCanny = 0; UNC.memory = STAGES - 1;
   BOB.on = false; BOB.state = 'hidden'; BOB.alpha = 0; BOB.grab = 0;
+  UNC.started = false; UNC.floor = 0;
   SFX.music('canny1');
   startGame();
   banner('BECOMING · ТЫ В ПОРЯДКЕ');
@@ -356,6 +414,7 @@ function drawExtendedHint(c) {
       drawBecomingOverlay(CTX);
       CTX.setTransform(US, 0, 0, US, UOX, UOY);
       if (G.mode === 'play' || G.mode === 'dead') drawBecomingHUD(CTX);
+      if (G.mode === 'play') { CTX.setTransform(1, 0, 0, 1, 0, 0); drawCountdown(CTX); }
       if (G.mode === 'menu') drawExtendedHint(CTX);
       CTX.setTransform(1, 0, 0, 1, 0, 0);
     } else if (G.mode === 'menu') {

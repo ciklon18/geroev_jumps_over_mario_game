@@ -118,6 +118,13 @@
       tone({ f0: 1400, type: 'square', dur: 0.035, vol: 0.16 });
       tone({ t0: 0.06, f0: 1050, type: 'square', dur: 0.035, vol: 0.12 });
     },
+    // the world turns dark: a dissonant swell
+    stinger: function () {
+      slide(90, 42, 0, 0.9, 'sawtooth', 0.10);
+      tone({ t0: 0.05, f0: 311, f1: 294, type: 'square', dur: 0.8, vol: 0.05 });
+      tone({ t0: 0.10, f0: 233, f1: 220, type: 'square', dur: 0.8, vol: 0.05 });
+      swoosh(0, 0.7, 300, 60, 0.12);
+    },
     select: function () { tone({ f0: 660, type: 'square', dur: 0.05, vol: 0.18 }); },
     // hard cut: vinyl stop before a stage change
     cut: function () {

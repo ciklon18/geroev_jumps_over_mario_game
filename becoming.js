@@ -8,7 +8,7 @@ var UNC = { v: 0, stage: 0, peak: 0, memory: 0, hud: 0, lastHit: 0, streak: 0, s
 var BOB = { on: false, x: 0, y: 0, state: 'hidden', t: 0, alpha: 0, grab: 0, face: 0, shootCD: 3 };
 var STAGES = 7;
 var BECOMING_DELAY = 10;   // seconds of play before Bob, the music and the horror start
-var STAGE_TRACK = ['canny1', 'canny2', 'unc1', 'unc2', 'unc3', 'unc4', 'unc4'];
+var STAGE_TRACK = ['canny1', 'unc1', 'unc2', 'unc3', 'unc4', 'unc4', 'unc4'];
 var STAGE_NAME = ['ТЫ В ПОРЯДКЕ', 'ВСЁ ХОРОШО', 'ЧТО-ТО НЕ ТАК', 'ПОГЛУБЖЕ', 'ОН ВИДИТ ТЕБЯ', 'ЭТО НЕ ПАПА', 'БЕГИ ПРОСТО БЕГИ'];
 
 // ------------------------------------------------------------------ Боб (рисуем кодом)
@@ -91,17 +91,17 @@ function uncannyAdd(d) {
   if (d < 0) UNC.streak = 0;
   if (!UNC.started) target = 0;   // nothing scary before the 10-second mark
   while (UNC.stage < target) { UNC.stage++; stageUp(); }
-  while (UNC.stage > target) { UNC.stage--; SFX.play('canny'); UNC.flash = 1; G.score += 20; popup(P.x, P.y - HH() - 20, 'CANNY +20', '#9fe8ff'); }
+  while (UNC.stage > target) { UNC.stage--; if (SFXOK) SFX.play('canny'); UNC.flash = 1; G.score += 20; popup(P.x, P.y - HH() - 20, 'CANNY +20', '#9fe8ff'); }
 }
 function stageUp() {
   UNC.lastHit = 1.4;
   UNC.sinceCanny = 0;
-  SFX.play('cut');
-  SFX.music(STAGE_TRACK[Math.max(0, UNC.stage - 1)]);
+  if (SFXOK) SFX.play('cut');
+  if (SFXOK) SFX.music(STAGE_TRACK[Math.max(0, UNC.stage - 1)]);
   G.shake = Math.max(G.shake, 6 + UNC.stage * 3);
   if (UNC.stage === 4 && !MODE.storyEnd) {
     MODE.storyEnd = true;
-    localStorage.setItem('gpm_bob_seen', '1');
+    if (typeof store === 'function') store('gpm_bob_seen', '1');
     if (typeof showStory !== 'undefined') showStory(true);
   }
 }
@@ -110,7 +110,7 @@ function stageUp() {
 function bobSpawn() {
   BOB.on = true;
   banner('БОБ ПАРР ПРИШЁЛ ЗА ТОБОЙ');
-  if (SFXOK) SFX.play('cut');
+  if (SFXOK) if (SFXOK) SFX.play('cut');
   BOB.state = 'enter';
   BOB.x = -90;
   BOB.y = groundY() - 34;
@@ -163,6 +163,11 @@ function updateBob(dt) {
 // ------------------------------------------------------------------ хук в update
 var __updBecoming = function (dt) {
   if (STORY.on) { updateStory(dt); return; }
+  if (!modOn()) {
+    if (UNC.lastHit > 0) UNC.lastHit -= dt;
+    if (UNC.flash > 0) UNC.flash = Math.max(0, UNC.flash - dt * 2);
+    return;
+  }
   var playing = G.mode === 'play';
   if (playing) {
     // постепенное разогревание: каждый раунд стадий = +18% к темпу Марио
@@ -195,7 +200,7 @@ var __updBecoming = function (dt) {
 // ------------------------------------------------------------------ хук в draw: оверлей
 function drawCountdown(c) {
   if (!modOn() || UNC.started || G.mode !== 'play') return;
-  var left = Math.max(0, BECOMING_DELAY - G.time.toFixed(1));
+  var left = Math.max(0, BECOMING_DELAY - G.time);
   var frac = clamp(G.time / BECOMING_DELAY, 0, 1);
   c.save();
   c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -219,7 +224,6 @@ function drawCountdown(c) {
 function drawBecomingOverlay(c) {
   var st = UNC.stage;
   if (st === 0 && !UNC.started) return;
-  var ramp = UNC.started ? 1 : 0;
   var W = CV.width, H = CV.height;
   // красная вигнетка — есть с первой же стадии
   var vig = Math.min(0.78, 0.30 + st * 0.09);
@@ -289,7 +293,7 @@ function drawBecomingHUD(c) {
   roundRectPath(c, x - 74, y + 80, Math.max(3, bw * f), bh, 4); c.fill();
   c.fillStyle = 'rgba(255,255,255,0.85)';
   c.font = 'bold 10px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'top';
-  c.fillText('UNCANNY ' + UNC.stage + '/' + (STAGES - 1), x - 37, y + 92);
+  c.fillText(STAGE_NAME[Math.min(STAGE_NAME.length - 1, UNC.stage)] || ('UNCANNY ' + UNC.stage), x - 37, y + 92);
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
 }
 
@@ -309,10 +313,9 @@ function startBecoming() {
   UNC.v = 0; UNC.stage = 0; UNC.peak = 0; UNC.hud = 0; UNC.lastHit = 0; UNC.streak = 0; UNC.flash = 0; UNC.sinceCanny = 0; UNC.memory = STAGES - 1;
   BOB.on = false; BOB.state = 'hidden'; BOB.alpha = 0; BOB.grab = 0;
   UNC.started = false; UNC.floor = 0;
-  SFX.music('canny1');
+  if (SFXOK) SFX.music('canny1');
   startGame();
   banner('BECOMING · ТЫ В ПОРЯДКЕ');
-  buildButtons();
 }
 
 // ------------------------------------------------------------------ сценки
@@ -325,12 +328,14 @@ var STORY = {
   ]
 };
 function showStory(extended) {
-  STORY.on = true; STORY.frame = 0; STORY.t = 0;
+  STORY.on = true; STORY.frame = 0; STORY.t = 0; STORY.after = extended ? 'extended' : 'menu';
+  if (typeof clearHolds === 'function') clearHolds();
   SFX.music(extended ? 'unc3' : 'canny1');
   if (SFXOK) SFX.play(extended ? 'cut' : 'select');
 }
 function updateStory(dt) {
   if (!STORY.on) return;
+  G.hitStop = Math.max(G.hitStop, 0.05);   // freezes gameplay systems while the cutscene runs
   STORY.t += dt;
   if (STORY.t > (STORY.frame === 2 ? 1.2 : 2.2)) {
     STORY.t = 0; STORY.frame++;
@@ -371,7 +376,7 @@ function drawStory(c) {
 
 // ------------------------------------------------------------------ расширенная кнопка в меню
 function drawExtendedHint(c) {
-  var W = 960, H = 540;
+  var W = 960;
   c.save();
   c.textAlign = 'center'; c.textBaseline = 'alphabetic';
   if (MODE.mode === 'becoming') {
@@ -380,18 +385,12 @@ function drawExtendedHint(c) {
     c.font = 'bold 19px system-ui, sans-serif';
     c.fillStyle = '#ff8b8b';
     c.fillText('BECOMING · ЛЮБАЯ ОШИБКА ЗЛИТ БОБА', W / 2, 49);
-  } else if (MODE.mode !== 'becoming') {
+  } else {
     var pulse = 0.55 + Math.sin(G.t * 4) * 0.25;
     c.globalAlpha = pulse;
     c.fillStyle = '#ff6b6b';
     c.font = 'bold 13px system-ui, sans-serif';
     c.fillText('▸ РАСШИРЕННАЯ ВЕРСИЯ: за Марио пришёл Боб Парр', W / 2, 519);
-    c.globalAlpha = 1;
-  } else {
-    c.globalAlpha = 0.55;
-    c.fillStyle = 'rgba(255,255,255,0.8)';
-    c.font = '13px system-ui, sans-serif';
-    c.fillText('Сыграй один раунд — откроется расширенная версия', W / 2, 519);
     c.globalAlpha = 1;
   }
   c.restore();

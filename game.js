@@ -5,6 +5,14 @@
 const SFXOK = typeof SFX !== 'undefined';
 function sfx(name) { if (SFXOK) { try { SFX.play(name); } catch (e) {} } }
 
+function store(k, v) {
+  try {
+    if (v === undefined) return localStorage.getItem(k);
+    localStorage.setItem(k, v);
+    return v;
+  } catch (e) { return null; }
+}
+
 const CV = document.getElementById('game');
 const CTX = CV.getContext('2d', { alpha: false });
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -28,9 +36,10 @@ function resize() {
   US = Math.min(CV.width / 960, CV.height / 540);
   UOX = (CV.width - 960 * US) / 2; UOY = (CV.height - 540 * US) / 2;
   if (G.mode === 'play' || G.mode === 'dead') P.y = Math.min(P.y, groundY());
-  if (G.mode === 'play' && M.x > VW) M.x = -80;   // never strand Mario off-screen after a resize
-  if (G.mode === 'play' && M.x > VW) M.x = -80;   // never strand Mario off-screen after a resize
+  if (G.mode === 'play' && M.x > VW) M.x = -80;   // never strand Mario off-screen after a resize   // never strand Mario off-screen after a resize
 }
+window.addEventListener('blur', function () { keys = Object.create(null); clearHolds(); touch.active = false; });
+document.addEventListener('visibilitychange', function () { if (document.hidden) { keys = Object.create(null); clearHolds(); } });
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', function () { setTimeout(resize, 300); });
 
@@ -43,7 +52,7 @@ var TAU = Math.PI * 2;
 // ------------------------------------------------------------------ global
 var G = {
   mode: 'menu', t: 0, time: 0, level: 1, lastLevel: 1, speedMul: 1,
-  dist: 0, score: 0, best: +(localStorage.getItem('gpm_best_v1') || 0),
+  dist: 0, score: 0, best: +(store('gpm_best_v1') || 0),
   shake: 0, hitStop: 0, bestFlash: 0, inGame: false,
   banner: '', bannerT: 0, toast: '', toastT: 0
 };
@@ -88,7 +97,6 @@ var spawnTimer = 0, nextSpore = 0, nextPower = 14;
 
 // ------------------------------------------------------------------- input
 var keys = Object.create(null);
-var TOUCHUI = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 var HELD = { left: false, right: false, jump: false, shield: false, moveDir: 0 };
 var pointerButton = {};
 function clearHolds() { HELD.left = HELD.right = HELD.jump = HELD.shield = false; HELD.moveDir = 0; pointerButton = {}; }
@@ -121,7 +129,7 @@ function buttonAt(u) {
 }
 var touch = { active: false, sx: 0, sy: 0, t0: 0, fired: false, id: null };
 // on-screen buttons only for phones / tablets and touch laptops
-var TOUCHUI = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+var TOUCHUI = (TOUCHUI) || (navigator.maxTouchPoints > 0);
 
 document.addEventListener('keydown', function (e) {
   var k = e.key;
@@ -170,7 +178,7 @@ CV.addEventListener('pointerdown', function (e) {
     beginHold(bid);
     return;
   }
-  if (hitAnyButton(u)) return;
+  try { CV.setPointerCapture(e.pointerId); } catch (err) {}
   touch.active = true; touch.id = e.pointerId;
   touch.sx = e.clientX; touch.sy = e.clientY; touch.t0 = performance.now(); touch.fired = false;
 }, { passive: true });
@@ -186,6 +194,7 @@ CV.addEventListener('pointermove', function (e) {
 }, { passive: true });
 
 function endTouch(e) {
+  if (e && touch.active && touch.id !== null && e.pointerId !== undefined && e.pointerId !== touch.id) return;
   if (e && pointerButton[e.pointerId]) { endHold(pointerButton[e.pointerId]); delete pointerButton[e.pointerId]; return; }
   if (!touch.active) return;
   touch.active = false;
@@ -201,12 +210,12 @@ function buildButtons() {
   buttons = [];
   if (G.mode === 'menu' || G.mode === 'dead') {
     buttons.push({ id: 'start', x: 250, y: 372, w: 460, h: 62 });
-    if (typeof MODE !== 'undefined' && MODE.mode !== 'becoming') {
+    if (typeof MODE === 'undefined' || MODE.mode !== 'becoming') {
       buttons.push({ id: 'becoming', x: 250, y: 446, w: 460, h: 56 });
     } else {
       buttons.push({ id: 'baseMode', x: 250, y: 446, w: 460, h: 56 });
     }
-    buttons.push({ id: 'sound', x: 22, y: 18, w: 64, h: 52 });
+    buttons.push({ id: 'sound', x: 884, y: 470, w: 56, h: 44 });
   } else if (G.mode === 'play' && TOUCHUI) {
     buttons.push({ id: 'left', x: 24, y: 422, w: 104, h: 96 });
     buttons.push({ id: 'right', x: 142, y: 422, w: 104, h: 96 });
@@ -284,6 +293,7 @@ function startGame() {
   spawnTimer = 0.9; nextSpore = 0.5; nextPower = 14;
   if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') {
     UNC.v = 0; UNC.stage = 0; UNC.streak = 0; UNC.lastHit = 0; UNC.sinceCanny = 0; UNC.flash = 0;
+    UNC.started = false; UNC.floor = 0;
     if (typeof BOB !== 'undefined') { BOB.on = false; BOB.state = 'hidden'; }
     SFX.music('canny1');
     spawnTimer = 0.7;
@@ -301,12 +311,11 @@ function gameOver() {
   sfx('squash');
   if (SFXOK) { try { SFX.music(false); } catch (e) {} }
   var final = Math.floor(G.score);
-  if (final > G.best) { G.best = final; G.bestFlash = 1; localStorage.setItem('gpm_best_v1', G.best); }
+  if (final > G.best) { G.best = final; G.bestFlash = 1; store('gpm_best_v1', G.best); }
   for (var i = 0; i < 26; i++) {
     addPart(P.x + rnd(-40, 40), P.y - HH() * 0.5, ['#b5523f', '#f0d8c0', '#c0d8a0'][i % 3], rnd(-260, 260), rnd(-320, -40), rnd(0.5, 1.1), rnd(2, 6));
   }
   if (typeof BOB !== 'undefined') { BOB.on = false; BOB.state = 'hidden'; }
-  if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') SFX.music(false);
   buildButtons();
 }
 
@@ -317,7 +326,10 @@ function addPart(x, y, color, vx, vy, life, r, grav) {
   if (parts.length > 260) parts.shift();
   parts.push({ x: x, y: y, vx: vx, vy: vy, color: color, life: life, max: life, r: r, g: grav === undefined ? 900 : grav });
 }
-function popup(x, y, text, color) { pops.push({ x: x, y: y, text: text, color: color || '#fff', life: 0.95 }); }
+function popup(x, y, text, color) {
+  if (pops.length > 24) pops.shift();
+  pops.push({ x: x, y: y, text: text, color: color || '#fff', life: 0.95 });
+}
 
 // ------------------------------------------------------------------- mario
 function marioParams() {
@@ -338,23 +350,12 @@ function marioSpawn() {
   M.face = 1;
 }
 
-function airtimeLeft() {
-  var g = GRAV * 0.9;
-  return (M.vy + Math.sqrt(Math.max(0, M.vy * M.vy + 2 * g * Math.max(0, groundY() - M.y)))) / g;
-}
-
 // Mario decides mid-run: he aims at where the mushroom will be when he lands.
 function startJump(p) {
   var g = GRAV * 0.9;
   var lead = P.dashT > 0 ? P.dashDir * 400 * P.dashT : 0;
   var aimX = P.x + lead * 0.5;
-  var tAir = 1.0;
-  for (var i = 0; i < 3; i++) {
-    var dx = Math.abs(aimX - M.x);
-    tAir = clamp(dx / Math.max(130, M.vx || p.speed), 0.28, 1.2);
-    if (0.5 * g * tAir * tAir > 30) break;
-    aimX = (aimX + P.x) / 2;
-  }
+  var tAir = clamp(Math.abs(aimX - M.x) / Math.max(130, M.vx || p.speed), 0.28, 1.2);
   var H = Math.max(90, (P.y - HH() * 0.4) - groundY());
   var apex = HH() * 0.8;
   var early = 0.6 * tAir;
@@ -368,6 +369,7 @@ function startJump(p) {
 
 function updateMario(dt) {
   var gy = groundY();
+  if (M.hitLock > 0) M.hitLock -= dt;
   var p = marioParams();
   M.speed = p.speed;
   M.timer -= dt;
@@ -425,14 +427,16 @@ function updateMario(dt) {
   var marioLeft = mx - MARIO_W * 0.5, marioRight = mx + MARIO_W * 0.5;
   var bodyOverlap = marioRight > r.x + r.w * 0.12 && marioLeft < r.x + r.w * 0.88;
   var headOverlap = bottom > r.y && top < r.y + r.h * 0.8;
-  if (bodyOverlap && headOverlap) {
+  if (bodyOverlap && headOverlap && !(M.hitLock > 0)) {
     if (P.iframe > 0 || P.shieldT > 0) {
+      if (M.hitLock > 0) return;
+      M.hitLock = 0.35;
+      P.iframe = Math.max(P.iframe, 0.25);
       M.vy = -640; M.onGround = false; M.state = 'air'; M.jumps = 2;
-      M.x += (M.x > P.x ? 22 : -22);
+      M.x += (M.x > P.x ? 70 : -70);
       G.score += 40;
       if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) {
         uncannyAdd(-4);
-        if (UNC.stage <= 2) { UNC.streak++; if (UNC.streak >= 5) { uncannyAdd(-16); UNC.streak = 0; } }
       }
       popup(P.x, r.y - 6, P.shieldT > 0 ? 'ПОД ШЛЯПКУ +40' : 'УВОРОТ +40', '#9fe8ff');
       sfx('stomp'); G.shake = 6;
@@ -448,12 +452,12 @@ function updateMario(dt) {
 // ------------------------------------------------------------------- spawns
 function updateSpawns(dt) {
   // hard safety: a Mario that ended up outside the field (resize / dash by / glitch) always comes back
-  if (M.x > VW + 60 || (M.x < -40 && M.vx < -50)) {
+  if (M.x > VW + 60) {
     M.x = -90; M.vx = 0; M.vy = 0; M.state = 'run'; M.timer = 0.2;
   }
   spawnTimer -= dt;
   if (spawnTimer <= 0 && M.state === 'run' && M.x < -70) {
-    if (typeof uncannyAdd === 'function' && modOn()) uncannyAdd(1.2);
+    if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) uncannyAdd(1.2);
     marioSpawn();
     spawnTimer = Math.max(0.45, rnd(1.0, 1.7) - G.level * 0.22);
   }
@@ -536,7 +540,7 @@ function update(dt) {
   // ---------------- playing
   G.time += dt;
   G.level = G.time < 16 ? 1 : G.time < 36 ? 2 : 3;
-  G.speedMul = 1 + Math.min(1.0, G.time / 45);
+  if (typeof modOn !== 'function' || !modOn()) G.speedMul = 1 + Math.min(1.0, G.time / 45);
   if (G.level !== G.lastLevel) {
     G.lastLevel = G.level;
     banner(G.level === 2 ? 'РАУНД 2 · НОЧНОЙ ЛЕС' : 'РАУНД 3 · ЗАМОК');
@@ -581,9 +585,7 @@ function update(dt) {
 
   updateHeld();
   updateMario(dt);
-  // watchdog: Mario hovering far right for >3 s means the run is stuck — reset him
-  if (M.x > VW - 60 && M.state !== 'air') { M.idleT = (M.idleT || 0) + dt; } else { M.idleT = 0; }
-  if (M.idleT > 3) { M.idleT = 0; M.x = -90; M.vx = 0; M.state = 'run'; M.timer = 0.2; }
+  if (G.mode !== 'play') return;
   updateSpawns(dt);
 
   G.score += dt * 10 * G.speedMul;
@@ -665,7 +667,7 @@ function draw() {
 }
 
 function drawSky(c) {
-  var lv = G.mode === 'play' ? G.level : 1;
+  var lv = (G.mode === 'menu') ? 1 : (G.level || 1);
   var g = c.createLinearGradient(0, 0, 0, VH);
   if (lv === 1) { g.addColorStop(0, '#5fc4f5'); g.addColorStop(0.65, '#b7e8ff'); g.addColorStop(1, '#e9f7d8'); }
   else if (lv === 2) { g.addColorStop(0, '#152244'); g.addColorStop(0.6, '#2c4270'); g.addColorStop(1, '#6a7f8f'); }
@@ -732,7 +734,7 @@ function blobCloud(c, x, y, r) {
 
 function drawGround(c) {
   var gy = groundY();
-  var lv = G.mode === 'play' ? G.level : 1;
+  var lv = (G.mode === 'menu') ? 1 : (G.level || 1);
   c.fillStyle = lv === 1 ? '#7a4f2a' : lv === 2 ? '#2b2418' : '#33232b';
   c.fillRect(0, gy, VW, VH - gy);
   c.fillStyle = lv === 1 ? '#6cbf4a' : lv === 2 ? '#1f3a2a' : '#5a2a2e';
@@ -938,13 +940,14 @@ function drawCooldown(c, x, y, w, h, p, label, color) {
 // floating score texts
 function drawPops(c) {
   c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  var kx = 960 / VW, ky = 540 / VH;   // world -> UI box
   for (var i = 0; i < pops.length; i++) {
     var q = pops[i];
     c.globalAlpha = clamp(q.life * 1.6, 0, 1);
     c.font = 'bold 22px system-ui, sans-serif';
     c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineJoin = 'round';
-    c.strokeText(q.text, q.x, q.y);
-    c.fillStyle = q.color; c.fillText(q.text, q.x, q.y);
+    c.strokeText(q.text, q.x * kx, q.y * ky);
+    c.fillStyle = q.color; c.fillText(q.text, q.x * kx, q.y * ky);
   }
   c.globalAlpha = 1;
   c.textAlign = 'left';
@@ -972,7 +975,7 @@ function drawMenu(c) {
   var raw = (typeof MODE !== 'undefined' && MODE.mode === 'becoming');
   var lines = raw
     ? ['Боб идёт за тобой. Каждая ошибка = +1 стадия ужаса', 'Чистые увороты откатывают его назад — лови CANNY-момент', 'Гравитация и скорость растут вместе со шкалой']
-    : (('ontouchstart' in window)
+    : ((TOUCHUI)
       ? ['Свайп ← → или кнопки — уворот дэшем', 'Тап — прыжок · кнопка щита — под шляпку', 'Марио прыгает НА тебя. Не дай себя расплющить!']
       : ['← → или A / D — уворот дэшем (есть кулдаун)', '↑ или Space — прыжок · S — спрятаться под шляпку', 'Марио прыгает НА тебя. Не дай себя расплющить!']);
   for (var i = 0; i < lines.length; i++) c.fillText(lines[i], W / 2, 270 + i * 28);
@@ -1076,8 +1079,7 @@ function frame(now) {
   var dt = (now - last) / 1000;
   last = now;
   if (dt > 0.05) dt = 0.05;
-  update(dt);
-  draw();
+  try { update(dt); draw(); } catch (e) { if (window.console) console.error(e); }
   requestAnimationFrame(frame);
 }
 

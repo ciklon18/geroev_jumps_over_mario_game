@@ -5,7 +5,7 @@
  * (https://ciklon18.github.io/geroev_jumps_over_mario_game/).
  */
 
-const VERSION = 'v12';
+const VERSION = 'v13';
 const CACHE = `mushroom-game-${VERSION}`;
 
 /** Список предкэшируемых файлов (относительно области регистрации). */
@@ -19,7 +19,10 @@ const PRECACHE_URLS = [
   './assets/jumpscare.jpg',
   './sfx.js',
   './assets/hero.png',
-  './assets/hero-src.png',
+  './assets/favicon.png',
+  './assets/icon-192.png',
+  './assets/icon-512.png',
+  './assets/icon-512-maskable.png',
   './manifest.webmanifest',
 ];
 
@@ -76,13 +79,14 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);
-      const cached = await cache.match(request, { ignoreSearch: false });
+      const cached = await cache.match(request, { ignoreSearch: true });
       if (cached) return cached;
 
       try {
         const response = await fetch(request);
         if (response && response.ok && response.type === 'basic') {
-          cache.put(request, response.clone()).catch(() => {});
+          const put = cache.put(request, response.clone()).catch(() => {});
+          if (event.waitUntil) event.waitUntil(put);
         }
         return response;
       } catch (err) {

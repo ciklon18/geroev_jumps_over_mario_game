@@ -22,9 +22,9 @@
     overscroll-behavior: none; -webkit-user-select: none; user-select: none;
     -webkit-tap-highlight-color: transparent; touch-action: none;
   }
-  #game { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #game { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
   #rotate {
-    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: none;
     flex-direction: column; gap: 14px; text-align: center; padding: 24px;
     background: #1b1b24; font-size: 18px; line-height: 1.4; z-index: 10;
   }
@@ -36,7 +36,7 @@
 </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <canvas id="game" role="application" aria-label="Игра: грибок уворачивается от прыжков Марио">Ваш браузер не поддерживает canvas.</canvas>
   <div id="rotate" class="hint">
     <b>📱↻</b>
     <div>Поверни телефон горизонтально —<br>так играть удобнее</div>

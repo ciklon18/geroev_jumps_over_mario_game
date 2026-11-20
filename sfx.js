@@ -167,7 +167,7 @@
     // mushroom dives under its own cap
     shield: function () {
       tone({ f0: 520, f1: 260, type: 'triangle', dur: 0.14, vol: 0.16 });
-      tone({ t0: 0.08, f0: 880, type: 'Sine' in {} ? 'sine' : 'triangle', dur: 0.18, vol: 0.10 });
+      tone({ t0: 0.08, f0: 880, type: 'triangle', dur: 0.18, vol: 0.10 });
     },
     start: function () {
       tone({ f0: 523, type: 'square', dur: 0.08, vol: 0.20 });
@@ -216,6 +216,7 @@
   };
 
   function schedule() {
+    if (ctx && nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;   // no burst after a hidden tab
     var tr = TRACKS[curTrack];
     if (!ctx || !musicOn || !tr) return;
     while (nextTime < ctx.currentTime + LOOKAHEAD) {

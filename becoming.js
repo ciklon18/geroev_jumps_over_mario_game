@@ -34,8 +34,8 @@ function drawBob(c, x, y, s, mood) {
   c.fillStyle = '#2b2b3a';
   c.beginPath(); c.arc(0, -72, 10, 0, TAU); c.fill();
   c.fillStyle = '#fff';
-  c.fillRect(-2, -79, 4, 12);
-  c.fillRect(-4, -66, 8, 3);
+  c.fillRect(-2, -79, 4, 9);
+  c.beginPath(); c.arc(0, -66.5, 2.3, 0, TAU); c.fill();
   // руки
   c.fillStyle = '#c62b2b';
   var sw = Math.sin(t * 9) * 6;
@@ -391,6 +391,10 @@ function drawExtendedHint(c) {
     c.globalAlpha = pulse;
     c.fillStyle = '#ff6b6b';
     c.font = 'bold 13px system-ui, sans-serif';
+    var tw = c.measureText('▸ РАСШИРЕННАЯ ВЕРСИЯ: за Марио пришёл Боб Парр').width + 24;
+    c.fillStyle = 'rgba(0,0,0,0.55)';
+    roundRectPath(c, W / 2 - tw / 2, 505, tw, 20, 8); c.fill();
+    c.fillStyle = '#ffd9d9';
     c.fillText('▸ РАСШИРЕННАЯ ВЕРСИЯ: за Марио пришёл Боб Парр', W / 2, 519);
     c.globalAlpha = 1;
   }

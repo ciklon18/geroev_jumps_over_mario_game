@@ -532,7 +532,7 @@ function update(dt) {
   if (typeof __updBecoming === 'function') __updBecoming(dt);
 
   if (G.mode === 'menu') {
-    P.x = VW / 2;
+    P.x = VW * 0.18;
     P.y = groundY() - Math.abs(Math.sin(G.t * 1.8)) * 14;
     P.tilt = Math.sin(G.t * 1.8) * 0.05;
     P.bob = G.t * 2;
@@ -921,7 +921,9 @@ function drawHUD(c) {
   c.fillText(Math.floor(G.score).toString(), pad, pad);
 
   c.font = 'bold 15px system-ui, sans-serif';
-  c.fillStyle = 'rgba(255,255,255,0.9)';
+  c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineJoin = 'round';
+  c.strokeText('РЕКОРД ' + Math.max(G.best, Math.floor(G.score)), pad, pad + 44);
+  c.fillStyle = '#fff';
   c.fillText('РЕКОРД ' + Math.max(G.best, Math.floor(G.score)), pad, pad + 44);
 
   c.textAlign = 'center';
@@ -952,18 +954,23 @@ function drawCooldown(c, x, y, w, h, p, label, color) {
 
 // floating score texts
 function drawPops(c) {
+  if (!pops.length) return;
+  c.save();
+  // exact conversion: world px -> canvas px -> UI box px
+  c.setTransform(1, 0, 0, 1, 0, 0);
   c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-  var kx = 960 / VW, ky = 540 / VH;   // world -> UI box
   for (var i = 0; i < pops.length; i++) {
     var q = pops[i];
+    var px = Math.round(OX + q.x * SCALE);
+    var py = Math.round(OY + q.y * SCALE);
     c.globalAlpha = clamp(q.life * 1.6, 0, 1);
-    c.font = 'bold 22px system-ui, sans-serif';
+    c.font = 'bold ' + Math.round(22 * SCALE / US) + 'px system-ui, sans-serif';
     c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineJoin = 'round';
-    c.strokeText(q.text, q.x * kx, q.y * ky);
-    c.fillStyle = q.color; c.fillText(q.text, q.x * kx, q.y * ky);
+    c.strokeText(q.text, px, py);
+    c.fillStyle = q.color; c.fillText(q.text, px, py);
   }
   c.globalAlpha = 1;
-  c.textAlign = 'left';
+  c.restore();
 }
 
 // -------------------------------------------------------------------- menus
@@ -994,8 +1001,10 @@ function drawMenu(c) {
   for (var i = 0; i < lines.length; i++) c.fillText(lines[i], W / 2, 270 + i * 28);
 
   c.font = 'bold 16px system-ui, sans-serif';
-  c.fillStyle = 'rgba(255,255,255,0.78)';
-  c.fillText('Рекорд: ' + G.best + '   ·   M — звук', W / 2, 370);
+  c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineJoin = 'round';
+  c.strokeText('Рекорд: ' + G.best + '   ·   M — звук', W / 2, 356);
+  c.fillStyle = 'rgba(255,255,255,0.95)';
+  c.fillText('Рекорд: ' + G.best + '   ·   M — звук', W / 2, 356);
   c.textAlign = 'left';
 }
 

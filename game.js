@@ -107,7 +107,9 @@ function endHold(id) {
   }
 }
 function updateHeld() {
-  if (HELD.moveDir !== 0 && P.dashCD <= 0 && P.dashT <= 0) doDash(HELD.moveDir);
+  if (HELD.moveDir !== 0 && G.mode === 'play' && P.dashCD <= 0 && P.dashT <= 0) {
+    doDash(HELD.moveDir);
+  }
   if (HELD.jump && !P.onGround && P.vy > 60 && P.jumps < P.maxJumps) doJump();
 }
 function buttonAt(u) {

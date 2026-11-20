@@ -144,7 +144,7 @@ function handleKey(k) {
   var K = k.toLowerCase();
   if (K === 'm' || K === 'ь') { toggleMute(); return; }
   if (G.mode === 'menu' || G.mode === 'dead') {
-    if (k === ' ' || k === 'Enter' || k === 'ArrowUp') startGame();
+    if (k === ' ' || k === 'Enter' || k === 'ArrowUp') restartRun();
     return;
   }
   if (G.mode !== 'play') return;
@@ -167,7 +167,7 @@ CV.addEventListener('pointerdown', function (e) {
   var u = toUI(e.clientX, e.clientY);
   if (G.mode === 'menu' || G.mode === 'dead') {
     if (hitAnyButton(u)) return;
-    startGame();
+    restartRun();
     return;
   }
   if (G.mode !== 'play') return;
@@ -235,7 +235,7 @@ function hitAnyButton(u) {
 }
 function pressButton(id) {
   if (id === 'baseMode') { leaveBecoming(); return; }
-  if (id === 'start') { if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') startBecoming(); else startGame(); }
+  if (id === 'start') { restartRun(); }
   else if (id === 'becoming') startBecoming();
   else if (id === 'sound') toggleMute();
   else if (id === 'left') doDash(-1);
@@ -277,6 +277,11 @@ function toggleMute() {
 }
 
 // ------------------------------------------------------------- game control
+function restartRun() {
+  if (typeof MODE !== 'undefined' && MODE.mode === 'becoming' && typeof startBecoming === 'function') startBecoming();
+  else startGame();
+}
+
 function startGame() {
   clearHolds();
   if (SFXOK) { try { SFX.unlock(); SFX.music(true); } catch (e) {} }
@@ -427,6 +432,14 @@ function updateMario(dt) {
   var marioLeft = mx - MARIO_W * 0.5, marioRight = mx + MARIO_W * 0.5;
   var bodyOverlap = marioRight > r.x + r.w * 0.12 && marioLeft < r.x + r.w * 0.88;
   var headOverlap = bottom > r.y && top < r.y + r.h * 0.8;
+  var grace = (typeof UNC !== 'undefined' && typeof modOn === 'function' && modOn() && !UNC.started);
+  if (grace && bodyOverlap && headOverlap) {
+    // warm-up: he bounces off harmlessly
+    M.vy = -520; M.onGround = false; M.state = 'air';
+    M.x += (M.x > P.x ? 60 : -60);
+    if (typeof popup === 'function') popup(P.x, playerRect().y - 6, 'ЕЩЁ РАНО', '#9fe8ff');
+    return;
+  }
   if (bodyOverlap && headOverlap && !(M.hitLock > 0)) {
     if (P.iframe > 0 || P.shieldT > 0) {
       if (M.hitLock > 0) return;

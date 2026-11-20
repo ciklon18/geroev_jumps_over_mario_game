@@ -190,6 +190,7 @@ var __updBecoming = function (dt) {
       if (SFXOK) { try { SFX.play('stinger'); } catch (e) {} }
       if (typeof triggerScare === 'function') triggerScare(1);   // the first face fills the screen
       if (!BOB.on) bobSpawn();
+      P.iframe = Math.max(P.iframe, 2.2);   // grace right after the reveal
     }
     updateBob(dt);
   }

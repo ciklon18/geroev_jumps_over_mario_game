@@ -5,7 +5,7 @@
  * (https://ciklon18.github.io/geroev_jumps_over_mario_game/).
  */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `mushroom-game-${VERSION}`;
 
 /** Список предкэшируемых файлов (относительно области регистрации). */

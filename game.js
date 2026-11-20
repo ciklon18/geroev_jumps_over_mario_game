@@ -59,8 +59,8 @@ var P = {
   face: 1, tilt: 0, bob: 0, squash: 0
 };
 
-function heroScale() { return clamp(Math.min(VW, VH) / 620, 0.72, 1.15); }
-function HW() { return 120 * heroScale(); }
+function heroScale() { return clamp(Math.min(VW, VH) / 470, 0.95, 1.55); }
+function HW() { return 150 * heroScale(); }
 function HH() { return HW() * 1.07; }
 function groundY() { return VH - Math.max(52, VH * 0.11); }
 
@@ -77,7 +77,7 @@ var M = {
   state: 'run', timer: 0.8, jumps: 0, maxJumps: 1, anim: 0,
   feint: false, feintShown: false, speed: 200
 };
-var MARIO_W = 40;
+var MARIO_W = 54;
 
 // ------------------------------------------------------------------ arrays
 var parts = [], pops = [], spores = [], powerups = [], clouds = [];
@@ -191,8 +191,8 @@ function pressButton(id) {
 // ------------------------------------------------------------------ actions
 function doDash(dir) {
   if (G.mode !== 'play' || P.dashCD > 0) return;
-  P.dashCD = 0.62; P.dashT = 0.17; P.dashDir = dir; P.face = dir;
-  P.iframe = 0.24;
+  P.dashCD = 0.72; P.dashT = 0.16; P.dashDir = dir; P.face = dir;
+  P.iframe = 0.20;
   sfx('dash');
   for (var i = 0; i < 9; i++) addPart(P.x - dir * HW() * 0.25, P.y - HH() * rnd(0.2, 0.6), '#dff3ff', rnd(60, 200) * -dir, rnd(-90, 20), rnd(0.25, 0.45), rnd(2, 5));
 }
@@ -265,7 +265,7 @@ function popup(x, y, text, color) { pops.push({ x: x, y: y, text: text, color: c
 // ------------------------------------------------------------------- mario
 function marioParams() {
   var lv = G.level;
-  return { speed: (215 + lv * 40) * G.speedMul, jumpV: 1010 + lv * 30 };
+  return { speed: (275 + lv * 55) * G.speedMul, jumpV: 1150 + lv * 35 };
 }
 
 function marioSpawn() {
@@ -274,9 +274,9 @@ function marioSpawn() {
   M.vx = 0; M.vy = 0; M.onGround = true;
   M.state = 'run';
   M.timer = rnd(0.15, 0.5);
-  M.maxJumps = G.level >= 2 ? 2 : 1;
+  M.maxJumps = 2;
   M.jumps = 0;
-  M.feint = G.level >= 3 && Math.random() < 0.3;
+  M.feint = G.level >= 3 && Math.random() < 0.45;
   M.feintShown = false;
   M.face = 1;
 }
@@ -300,7 +300,7 @@ function startJump(p) {
   }
   var up = 0.5 * g * tAir * tAir;
   var v = -clamp(Math.sqrt(2 * g * Math.max(20, up + (groundY() - M.y))), p.jumpV * 0.6, p.jumpV * 1.25);
-  M.maxJumps = G.level >= 2 ? 2 : 1;
+  M.maxJumps = 2;
   M.vy = v; M.state = 'air'; M.jumps = 1; M.onGround = false;
   M.timer = 0;
   sfx('mjump');
@@ -321,7 +321,7 @@ function updateMario(dt) {
       if (M.feint && !M.feintShown && gap < 340) {
         M.feintShown = true;
         M.state = 'feint'; M.timer = 0.26; sfx('feint');
-      } else if (M.timer <= 0 && timeToReach < 0.3 + Math.random() * 0.1) {
+      } else if (M.timer <= 0 && timeToReach < 0.40 + Math.random() * 0.12) {
         startJump(p);
       }
     }
@@ -344,7 +344,7 @@ function updateMario(dt) {
       M.state = 'run';
       M.timer = rnd(0.12, 0.45);
       M.jumps = 0;
-      M.feint = G.level >= 3 && Math.random() < 0.3;
+      M.feint = G.level >= 3 && Math.random() < 0.45;
       M.feintShown = false;
       for (var i = 0; i < 7; i++) addPart(M.x, gy, '#d9c69a', rnd(-120, 120), rnd(-140, -30), 0.35, rnd(2, 4));
       sfx('ml');
@@ -357,8 +357,8 @@ function updateMario(dt) {
   // ---- collision: Mario's feet vs the mushroom's head
   var r = playerRect();
   var feetY = M.y;
-  var bodyTop = M.y - 74;
-  var overlapX = M.x + MARIO_W * 0.28 > r.x && M.x - MARIO_W * 0.28 < r.x + r.w;
+  var bodyTop = M.y - 106;
+  var overlapX = M.x + MARIO_W * 0.30 > r.x && M.x - MARIO_W * 0.30 < r.x + r.w;
   var feetInHead = feetY > r.y && bodyTop < r.y + r.h * 0.75;
   if (overlapX && feetInHead) {
     if (P.iframe > 0 || P.shieldT > 0) {
@@ -380,7 +380,7 @@ function updateSpawns(dt) {
   spawnTimer -= dt;
   if (spawnTimer <= 0 && M.state === 'run' && M.x < -70) {
     marioSpawn();
-    spawnTimer = Math.max(0.6, rnd(1.3, 2.1) - G.level * 0.25);
+    spawnTimer = Math.max(0.45, rnd(1.0, 1.7) - G.level * 0.22);
   }
 
   nextSpore -= dt;
@@ -459,7 +459,7 @@ function update(dt) {
   // ---------------- playing
   G.time += dt;
   G.level = G.time < 16 ? 1 : G.time < 36 ? 2 : 3;
-  G.speedMul = 1 + Math.min(0.9, G.time / 60);
+  G.speedMul = 1 + Math.min(1.0, G.time / 45);
   if (G.level !== G.lastLevel) {
     G.lastLevel = G.level;
     banner(G.level === 2 ? 'РАУНД 2 · НОЧНОЙ ЛЕС' : 'РАУНД 3 · ЗАМОК');
@@ -671,7 +671,7 @@ function drawMario(c) {
   var x = M.x, y = M.y - bob;
   c.save();
   c.translate(x, y);
-  c.scale(M.face, 1);
+  c.scale(M.face * 1.36, 1.36);
 
   c.fillStyle = 'rgba(0,0,0,0.22)';
   c.beginPath(); c.ellipse(0, (gy - y) + 2, 26, 8, 0, 0, TAU); c.fill();
@@ -833,7 +833,7 @@ function drawHUD(c) {
   }
 
   var cw = 118, ch = 20, cx = 960 - pad - cw;
-  drawCooldown(c, cx, pad + 4, cw, ch, 1 - P.dashCD / 0.62, 'ДЭШ ← →', '#7fd8ff');
+  drawCooldown(c, cx, pad + 4, cw, ch, 1 - P.dashCD / 0.72, 'ДЭШ ← →', '#7fd8ff');
   drawCooldown(c, cx, pad + 30, cw, ch, 1 - P.shieldCD / 2.6, 'ШЛЯПКА S', '#ffe9a8');
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
 }

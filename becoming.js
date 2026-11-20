@@ -169,7 +169,7 @@ var __updBecoming = function (dt) {
     UNC.v = Math.max(0, UNC.v - decay * dt);
     UNC.sinceCanny += dt;
     if (UNC.sinceCanny > 9) { uncannyAdd(3); UNC.sinceCanny = 0; }
-    if (UNC.stage >= 1 && !BOB.on) bobSpawn();
+    if (modOn() && UNC.stage >= 1 && !BOB.on) bobSpawn();
     updateBob(dt);
   }
   if (UNC.lastHit > 0) UNC.lastHit -= dt;
@@ -238,6 +238,14 @@ function drawBecomingHUD(c) {
 function modOn() { return MODE.mode === 'becoming'; }
 
 // ------------------------------------------------------------------ старт режима
+function leaveBecoming() {
+  MODE.mode = 'base';
+  BOB.on = false; BOB.state = 'hidden';
+  UNC.v = 0; UNC.stage = 0;
+  if (SFXOK) { try { SFX.music('canny1'); } catch (e) {} }
+  buildButtons();
+}
+
 function startBecoming() {
   MODE.mode = 'becoming';
   UNC.v = 0; UNC.stage = 0; UNC.peak = 0; UNC.hud = 0; UNC.lastHit = 0; UNC.streak = 0; UNC.flash = 0; UNC.sinceCanny = 0; UNC.memory = STAGES - 1;
@@ -312,19 +320,19 @@ function drawExtendedHint(c) {
     roundRectPath(c, 236, 20, 488, 44, 14); c.fill();
     c.font = 'bold 19px system-ui, sans-serif';
     c.fillStyle = '#ff8b8b';
-    c.fillText('RAW CANNY MODE · КАЖДАЯ ОШИБКА ДЕЛАЕТ ЕГО ЗЛЕЕ', W / 2, 49);
-  } else if (+(localStorage.getItem('gpm_runs') || 0) >= 1 || localStorage.getItem('gpm_bob_seen')) {
+    c.fillText('BECOMING · ЛЮБАЯ ОШИБКА ЗЛИТ БОБА', W / 2, 49);
+  } else if (MODE.mode !== 'becoming') {
     var pulse = 0.55 + Math.sin(G.t * 4) * 0.25;
     c.globalAlpha = pulse;
     c.fillStyle = '#ff6b6b';
     c.font = 'bold 13px system-ui, sans-serif';
-    c.fillText('▸ РАСШИРЕННАЯ ВЕРСИЯ: за Марио пришёл Боб Парр', W / 2 + 6, 507);
+    c.fillText('▸ РАСШИРЕННАЯ ВЕРСИЯ: за Марио пришёл Боб Парр', W / 2, 519);
     c.globalAlpha = 1;
   } else {
     c.globalAlpha = 0.55;
     c.fillStyle = 'rgba(255,255,255,0.8)';
     c.font = '13px system-ui, sans-serif';
-    c.fillText('Сыграй один раунд — откроется расширенная версия', W / 2, 507);
+    c.fillText('Сыграй один раунд — откроется расширенная версия', W / 2, 519);
     c.globalAlpha = 1;
   }
   c.restore();

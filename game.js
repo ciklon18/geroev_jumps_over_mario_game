@@ -200,9 +200,11 @@ var buttons = [];
 function buildButtons() {
   buttons = [];
   if (G.mode === 'menu' || G.mode === 'dead') {
-    buttons.push({ id: 'start', x: 310, y: 398, w: 340, h: 68 });
-    if (typeof MODE !== 'undefined' && MODE.mode !== 'becoming' && (+(localStorage.getItem('gpm_runs') || 0) >= 1 || localStorage.getItem('gpm_bob_seen'))) {
-      buttons.push({ id: 'becoming', x: 310, y: 474, w: 340, h: 44 });
+    buttons.push({ id: 'start', x: 250, y: 372, w: 460, h: 62 });
+    if (typeof MODE !== 'undefined' && MODE.mode !== 'becoming') {
+      buttons.push({ id: 'becoming', x: 250, y: 446, w: 460, h: 56 });
+    } else {
+      buttons.push({ id: 'baseMode', x: 250, y: 446, w: 460, h: 56 });
     }
     buttons.push({ id: 'sound', x: 22, y: 18, w: 64, h: 52 });
   } else if (G.mode === 'play' && TOUCHUI) {
@@ -223,6 +225,7 @@ function hitAnyButton(u) {
   return false;
 }
 function pressButton(id) {
+  if (id === 'baseMode') { leaveBecoming(); return; }
   if (id === 'start') { if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') startBecoming(); else startGame(); }
   else if (id === 'becoming') startBecoming();
   else if (id === 'sound') toggleMute();
@@ -1015,6 +1018,15 @@ function drawButtons(c) {
       c.font = 'bold 32px system-ui, sans-serif';
       c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText(G.mode === 'dead' ? 'ЕЩЁ РАЗ' : 'ИГРАТЬ', b.x + b.w / 2, b.y + b.h / 2 + 1);
+    } else if (b.id === 'becoming' || b.id === 'baseMode') {
+      var on = b.id === 'baseMode';
+      c.fillStyle = on ? 'rgba(255,255,255,0.14)' : 'rgba(190,30,30,0.92)';
+      roundRectPath(c, b.x, b.y, b.w, b.h, 16); c.fill();
+      c.strokeStyle = on ? 'rgba(255,255,255,0.5)' : 'rgba(255,120,120,0.95)'; c.lineWidth = 2; c.stroke();
+      c.fillStyle = '#fff';
+      c.font = 'bold 22px system-ui, sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(on ? 'ОБЫЧНЫЙ РЕЖИМ' : 'БОБ ПАРР · BECOMING', b.x + b.w / 2, b.y + b.h / 2 + 1);
     } else if (b.id === 'sound') {
       c.fillStyle = 'rgba(0,0,0,0.4)';
       roundRectPath(c, b.x, b.y, b.w, b.h, 14); c.fill();

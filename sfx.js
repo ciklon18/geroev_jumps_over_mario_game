@@ -118,6 +118,26 @@
       tone({ f0: 1400, type: 'square', dur: 0.035, vol: 0.16 });
       tone({ t0: 0.06, f0: 1050, type: 'square', dur: 0.035, vol: 0.12 });
     },
+    // JUMPSCARE: a full horror scream (noise + detuned saws sliding down)
+    scream: function () {
+      swoosh(0, 0.55, 5200, 240, 0.30);
+      slide(720, 180, 0, 0.5, 'sawtooth', 0.14);
+      slide(760, 150, 0.01, 0.5, 'square', 0.08);
+      tone({ t0: 0.02, f0: 1100, f1: 220, type: 'sawtooth', dur: 0.45, vol: 0.10 });
+    },
+    // harder variant used at high stages
+    screamDeep: function () {
+      swoosh(0, 0.8, 3000, 90, 0.32);
+      slide(240, 55, 0, 0.75, 'sawtooth', 0.16);
+      tone({ t0: 0.03, f0: 90, f1: 42, type: 'square', dur: 0.7, vol: 0.10 });
+      tone({ t0: 0.08, f0: 880, f1: 160, type: 'sawtooth', dur: 0.5, vol: 0.07 });
+    },
+    // reversed-sounding scream (rises instead of falling)
+    screamRev: function () {
+      slide(120, 1400, 0, 0.4, 'sawtooth', 0.13);
+      swoosh(0, 0.42, 200, 5200, 0.22);
+      tone({ t0: 0.15, f0: 300, f1: 1500, type: 'square', dur: 0.25, vol: 0.07 });
+    },
     // the world turns dark: a dissonant swell
     stinger: function () {
       slide(90, 42, 0, 0.9, 'sawtooth', 0.10);

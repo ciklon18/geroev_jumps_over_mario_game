@@ -183,6 +183,7 @@ var __updBecoming = function (dt) {
       UNC.floor = 1;
       if (UNC.stage < 1) uncannyAdd(16);   // the first stage of horror starts the moment the timer ends
       if (SFXOK) { try { SFX.play('stinger'); } catch (e) {} }
+      if (typeof triggerScare === 'function') triggerScare(1);   // the first face fills the screen
       if (!BOB.on) bobSpawn();
     }
     updateBob(dt);

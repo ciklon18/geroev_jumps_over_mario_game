@@ -119,6 +119,17 @@
       tone({ t0: 0.06, f0: 1050, type: 'square', dur: 0.035, vol: 0.12 });
     },
     select: function () { tone({ f0: 660, type: 'square', dur: 0.05, vol: 0.18 }); },
+    // hard cut: vinyl stop before a stage change
+    cut: function () {
+      slide(600, 60, 0, 0.09, 'sawtooth', 0.08);
+      swoosh(0, 0.12, 4000, 200, 0.07);
+    },
+    // rollback to Canny
+    canny: function () {
+      tone({ f0: 523, type: 'square', dur: 0.07, vol: 0.18 });
+      tone({ t0: 0.08, f0: 784, type: 'square', dur: 0.07, vol: 0.18 });
+      tone({ t0: 0.16, f0: 1047, type: 'square', dur: 0.16, vol: 0.16 });
+    },
     // Mario jumps (rising arcade blip)
     mjump: function () { tone({ f0: 220, f1: 660, type: 'square', dur: 0.13, vol: 0.16 }); },
     // Mario lands (soft thud)
@@ -138,35 +149,71 @@
     }
   };
 
-  // ---- Music: 8-note bass + lead loop, lookahead scheduler ----
-  var STEP = 0.22, LOOKAHEAD = 0.1, TICK = 25;
-  var BASS = [131, 131, 165, 196, 131, 165, 147, 98];
-  var LEAD = [523, 659, 784, 659, 587, 784, 880, 784];
-  var musicOn = false, timer = null, step = 0, nextTime = 0;
+  // ---- Music: stage-based memey soundtrack (original chiptune approximations)
+  // keys: canny1 canny2 unc1 unc2 unc3 unc4
+  var musicOn = false, timer = null, step = 0, nextTime = 0, curTrack = null;
+  var LOOKAHEAD = 0.12, TICK = 25;
+
+  function n(f, t0, dur, type, vol) { tone({ t0: t0, f0: f, type: type || 'square', dur: dur, vol: vol == null ? 0.05 : vol }); }
+  function slide(f0, f1, t0, dur, type, vol) { tone({ t0: t0, f0: f0, f1: f1, type: type || 'sawtooth', dur: dur, vol: vol == null ? 0.06 : vol }); }
+
+  // each track = fn(step 0..7, start offset)
+  var TRACKS = {
+    canny1: { step: 0.16, fn: function (i, t0) {
+      var mel = [784, 880, 988, 1047, 988, 880, 784, 659];
+      n(131, t0, 0.15, 'triangle', 0.045); n(mel[i], t0, 0.12, 'square', 0.03);
+      if (i % 4 === 0) n(mel[i] * 2, t0, 0.08, 'sine', 0.015); } },
+    canny2: { step: 0.155, fn: function (i, t0) {
+      var mel = [659, 784, 880, 784, 659, 587, 523, 659];
+      n(131, t0, 0.14, 'triangle', 0.05); n(mel[i], t0, 0.11, 'square', 0.03); } },
+    unc1: { step: 0.19, fn: function (i, t0) {
+      var mel = [392, 415, 392, 370, 349, 330, 311, 294];
+      var bass = [98, 98, 87, 87, 82, 82, 73, 73];
+      n(bass[i], t0, 0.18, 'triangle', 0.055);
+      if (i % 2 === 0) n(mel[i], t0, 0.14, 'square', 0.022);
+      if (i === 7) slide(300, 180, t0, 0.25, 'sine', 0.02); } },
+    unc2: { step: 0.21, fn: function (i, t0) {
+      var mel = [311, 294, 277, 262, 247, 233, 220, 208];
+      n(73, t0, 0.2, 'triangle', 0.06);
+      if (i % 2 === 0) n(mel[i], t0, 0.18, 'sawtooth', 0.018);
+      if (i === 0) n(116, t0, 0.06, 'square', 0.04); } },
+    unc3: { step: 0.14, fn: function (i, t0) {
+      slide(196, 98, t0, 0.13, 'sawtooth', 0.055);
+      if (i % 2 === 0) n(49, t0, 0.12, 'square', 0.05);
+      if (i % 4 === 2) slide(400, 120, t0, 0.1, 'square', 0.03); } },
+    unc4: { step: 0.13, fn: function (i, t0) {
+      slide(230, 80, t0, 0.12, 'sawtooth', 0.06);
+      n(41, t0, 0.1, 'square', 0.055);
+      if (i === 0) n(880, t0, 0.05, 'square', 0.03);
+      if (i === 5) slide(900, 200, t0, 0.06, 'square', 0.03); } }
+  };
 
   function schedule() {
-    if (!ctx || !musicOn) return;
+    var tr = TRACKS[curTrack];
+    if (!ctx || !musicOn || !tr) return;
     while (nextTime < ctx.currentTime + LOOKAHEAD) {
-      var i = step % 8, d = Math.max(0, nextTime - ctx.currentTime);
-      tone({ t0: d, f0: BASS[i], type: 'triangle', dur: STEP * 0.9, vol: 0.055 });
-      tone({ t0: d, f0: LEAD[i], type: 'square', dur: STEP * 0.55, vol: 0.018, attack: 0.01 });
-      nextTime += STEP;
+      var d = Math.max(0, nextTime - ctx.currentTime);
+      tr.fn(step % 8, d);
+      nextTime += tr.step;
       step++;
     }
   }
 
+  // music(true) = default loop, music(false) = off, music('unc2') = switch stage track
   function music(on) {
-    on = !!on;
-    if (on === musicOn) { if (on) ensure(); return; }
-    musicOn = on;
-    if (!on) {
+    var key = on === true ? 'canny1' : (on ? String(on) : null);
+    if (key && key === curTrack) { ensure(); return; }
+    curTrack = key;
+    musicOn = !!key;
+    if (!key) {
       if (timer) { clearInterval(timer); timer = null; }
       return;
     }
+    if (!TRACKS[key]) { curTrack = 'canny1'; key = curTrack; }
     if (!ensure()) return;
     step = 0; nextTime = ctx.currentTime + 0.05;
     schedule();
-    timer = setInterval(schedule, TICK);
+    if (!timer) timer = setInterval(schedule, TICK);
   }
 
   var SFX = {

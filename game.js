@@ -160,7 +160,10 @@ var buttons = [];
 function buildButtons() {
   buttons = [];
   if (G.mode === 'menu' || G.mode === 'dead') {
-    buttons.push({ id: 'start', x: 310, y: 404, w: 340, h: 74 });
+    buttons.push({ id: 'start', x: 310, y: 398, w: 340, h: 68 });
+    if (typeof MODE !== 'undefined' && MODE.mode !== 'becoming' && (+(localStorage.getItem('gpm_runs') || 0) >= 1 || localStorage.getItem('gpm_bob_seen'))) {
+      buttons.push({ id: 'becoming', x: 310, y: 474, w: 340, h: 44 });
+    }
     buttons.push({ id: 'sound', x: 22, y: 18, w: 64, h: 52 });
   } else if (G.mode === 'play' && TOUCHUI) {
     buttons.push({ id: 'left', x: 24, y: 422, w: 104, h: 96 });
@@ -180,7 +183,8 @@ function hitAnyButton(u) {
   return false;
 }
 function pressButton(id) {
-  if (id === 'start') startGame();
+  if (id === 'start') { if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') startBecoming(); else startGame(); }
+  else if (id === 'becoming') startBecoming();
   else if (id === 'sound') toggleMute();
   else if (id === 'left') doDash(-1);
   else if (id === 'right') doDash(1);
@@ -234,6 +238,12 @@ function startGame() {
   M.onGround = true; M.jumps = 0; M.maxJumps = 1; M.feint = false; M.feintShown = false;
   playerSpores = 0;
   spawnTimer = 0.9; nextSpore = 0.5; nextPower = 14;
+  if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') {
+    UNC.v = 0; UNC.stage = 0; UNC.streak = 0; UNC.lastHit = 0; UNC.sinceCanny = 0; UNC.flash = 0;
+    if (typeof BOB !== 'undefined') { BOB.on = false; BOB.state = 'hidden'; }
+    SFX.music('canny1');
+    spawnTimer = 0.7;
+  }
   banner('РАУНД 1 · ГРИБНОЕ ПОЛЕ');
   buildButtons();
   sfx('start');
@@ -250,6 +260,8 @@ function gameOver() {
   for (var i = 0; i < 26; i++) {
     addPart(P.x + rnd(-40, 40), P.y - HH() * 0.5, ['#b5523f', '#f0d8c0', '#c0d8a0'][i % 3], rnd(-260, 260), rnd(-320, -40), rnd(0.5, 1.1), rnd(2, 6));
   }
+  if (typeof BOB !== 'undefined') { BOB.on = false; BOB.state = 'hidden'; }
+  if (typeof MODE !== 'undefined' && MODE.mode === 'becoming') SFX.music(false);
   buildButtons();
 }
 
@@ -364,13 +376,18 @@ function updateMario(dt) {
     if (P.iframe > 0 || P.shieldT > 0) {
       M.vy = -640; M.onGround = false; M.state = 'air'; M.jumps = 2;
       M.x += (M.x > P.x ? 22 : -22);
-      G.score += 40;
+      G.score += 40; if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) uncannyAdd(-1);
       popup(P.x, r.y - 6, P.shieldT > 0 ? 'ПОД ШЛЯПКУ +40' : 'УВОРОТ +40', '#9fe8ff');
       sfx('stomp'); G.shake = 6;
+      if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) {
+        uncannyAdd(-4);
+        if (UNC.stage <= 2) { UNC.streak++; if (UNC.streak >= 5) { uncannyAdd(-16); UNC.streak = 0; } }
+      }
       P.shieldT = 0;
       for (var j = 0; j < 12; j++) addPart(P.x, r.y, '#9fe8ff', rnd(-220, 220), rnd(-220, 40), 0.45, 3);
       return;
     }
+    if (typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) { uncannyAdd(30); }
     gameOver();
   }
 }
@@ -379,6 +396,7 @@ function updateMario(dt) {
 function updateSpawns(dt) {
   spawnTimer -= dt;
   if (spawnTimer <= 0 && M.state === 'run' && M.x < -70) {
+    if (typeof uncannyAdd === 'function' && modOn()) uncannyAdd(1.2);
     marioSpawn();
     spawnTimer = Math.max(0.45, rnd(1.0, 1.7) - G.level * 0.22);
   }
@@ -409,6 +427,7 @@ function updateSpawns(dt) {
       spores.splice(s, 1);
       playerSpores++;
       var pts = playerSpores % 10 === 0 ? 50 : 10;
+      if (pts === 50 && typeof uncannyAdd === 'function' && typeof modOn === 'function' && modOn()) uncannyAdd(-6);
       G.score += pts;
       popup(sp.x, sp.y, '+' + pts, '#ffe066');
       sfx('coin');
@@ -436,6 +455,7 @@ function update(dt) {
   if (G.toastT > 0) G.toastT -= dt;
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 46);
   if (G.bestFlash > 0) G.bestFlash = Math.max(0, G.bestFlash - dt);
+  if (typeof __updBecoming === 'function') __updBecoming(dt);
 
   if (G.mode === 'menu') {
     P.x = VW / 2;
@@ -484,8 +504,12 @@ function update(dt) {
     P.tilt = lerp(P.tilt, steer * 0.1, Math.min(1, dt * 10));
   }
 
-  P.vy += GRAV * dt;
+  P.vy += GRAV * (typeof UNC !== 'undefined' && typeof modOn === 'function' && modOn() ? 1 + UNC.stage * 0.05 : 1) * dt;
   P.y += P.vy * dt;
+  if (typeof BOB !== 'undefined' && BOB.on && BOB.state === 'grab') {
+    if (P.dashT > 0 || P.iframe > 0) { BOB.state = 'chase'; BOB.grab = 0; if (typeof uncannyAdd === 'function') uncannyAdd(-5); }
+    else { P.x += (BOB.x - P.x) * Math.min(1, dt * 2.2); }
+  }
   var gy = groundY();
   if (P.y >= gy) {
     if (!P.onGround && P.vy > 500) {
@@ -503,6 +527,7 @@ function update(dt) {
 
   G.score += dt * 10 * G.speedMul;
   G.dist += dt * 90 * G.speedMul;
+
 
   particles(dt); popsProc(dt); cloudsProc(dt);
 }
@@ -883,9 +908,12 @@ function drawMenu(c) {
   var small = 19;
   c.font = small + 'px system-ui, sans-serif';
   c.fillStyle = 'rgba(255,255,255,0.95)';
-  var lines = ('ontouchstart' in window)
-    ? ['Свайп ← → или кнопки — уворот дэшем', 'Тап — прыжок · кнопка щита — под шляпку', 'Марио прыгает НА тебя. Не дай себя расплющить!']
-    : ['← → или A / D — уворот дэшем (есть кулдаун)', '↑ или Space — прыжок · S — спрятаться под шляпку', 'Марио прыгает НА тебя. Не дай себя расплющить!'];
+  var raw = (typeof MODE !== 'undefined' && MODE.mode === 'becoming');
+  var lines = raw
+    ? ['Боб идёт за тобой. Каждая ошибка = +1 стадия ужаса', 'Чистые увороты откатывают его назад — лови CANNY-момент', 'Гравитация и скорость растут вместе со шкалой']
+    : (('ontouchstart' in window)
+      ? ['Свайп ← → или кнопки — уворот дэшем', 'Тап — прыжок · кнопка щита — под шляпку', 'Марио прыгает НА тебя. Не дай себя расплющить!']
+      : ['← → или A / D — уворот дэшем (есть кулдаун)', '↑ или Space — прыжок · S — спрятаться под шляпку', 'Марио прыгает НА тебя. Не дай себя расплющить!']);
   for (var i = 0; i < lines.length; i++) c.fillText(lines[i], W / 2, 270 + i * 28);
 
   c.font = 'bold 16px system-ui, sans-serif';

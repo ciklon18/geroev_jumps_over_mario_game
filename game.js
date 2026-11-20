@@ -235,7 +235,7 @@ function pressButton(id) {
 // ------------------------------------------------------------------ actions
 function doDash(dir) {
   if (G.mode !== 'play' || P.dashCD > 0) return;
-  P.dashCD = TOUCHUI ? 0.46 : 0.62; P.dashT = TOUCHUI ? 0.22 : 0.16; P.dashDir = dir; P.face = dir;
+  P.dashCD = TOUCHUI ? 0.42 : 0.55; P.dashT = TOUCHUI ? 0.24 : 0.19; P.dashDir = dir; P.face = dir;
   P.iframe = TOUCHUI ? 0.42 : 0.34;
   sfx('dash');
   for (var i = 0; i < 9; i++) addPart(P.x - dir * HW() * 0.25, P.y - HH() * rnd(0.2, 0.6), '#dff3ff', rnd(60, 200) * -dir, rnd(-90, 20), rnd(0.25, 0.45), rnd(2, 5));
@@ -253,7 +253,7 @@ function doJump() {
 }
 function doShield() {
   if (G.mode !== 'play' || P.shieldCD > 0) return;
-  P.shieldCD = 2.6; P.shieldT = 0.42;
+  P.shieldCD = 2.0; P.shieldT = TOUCHUI ? 0.6 : 0.5;
   sfx('shield');
   for (var i = 0; i < 8; i++) addPart(P.x + rnd(-34, 34), P.y - HH() * 0.65, '#ffe9a8', rnd(-70, 70), rnd(-60, 20), 0.3, rnd(2, 4));
 }
@@ -417,9 +417,10 @@ function updateMario(dt) {
   // unless you are dashing or hiding under the hat (invulnerability windows).
   var r = playerRect();
   var mx = M.x;
-  var top = M.y - 92;              // his torso, not the whole sprite
-  var bottom = M.y;                // his feet
-  var bodyOverlap = mx + MARIO_W * 0.22 > r.x && mx - MARIO_W * 0.22 < r.x + r.w;
+  var top = M.y - 64;              // torso only (the sprite is drawn above M.y)
+  var bottom = M.y + 8;            // feet
+  var marioLeft = mx - MARIO_W * 0.5, marioRight = mx + MARIO_W * 0.5;
+  var bodyOverlap = marioRight > r.x + r.w * 0.12 && marioLeft < r.x + r.w * 0.88;
   var headOverlap = bottom > r.y && top < r.y + r.h * 0.8;
   if (bodyOverlap && headOverlap) {
     if (P.iframe > 0 || P.shieldT > 0) {
@@ -547,7 +548,7 @@ function update(dt) {
 
   if (P.dashT > 0) {
     P.dashT -= dt;
-    P.x += P.dashDir * (TOUCHUI ? 820 : 760) * dt;
+    P.x += P.dashDir * (TOUCHUI ? 1080 : 980) * dt;
     P.tilt = lerp(P.tilt, -P.dashDir * 0.22, Math.min(1, dt * 14));
   } else {
     var steer = HELD.moveDir;
@@ -571,7 +572,7 @@ function update(dt) {
     P.y = gy; P.vy = 0; P.onGround = true; P.jumps = 0;
   } else P.onGround = false;
 
-  var margin = HW() * 0.45;
+  var margin = HW() * 0.72;
   if (P.x < margin) { P.x = margin; if (P.dashT > 0) P.dashT = 0; }
   if (P.x > VW - margin) { P.x = VW - margin; if (P.dashT > 0) P.dashT = 0; }
 
@@ -915,8 +916,8 @@ function drawHUD(c) {
   }
 
   var cw = 118, ch = 20, cx = 960 - pad - cw;
-  drawCooldown(c, cx, pad + 4, cw, ch, 1 - P.dashCD / (TOUCHUI ? 0.46 : 0.62), 'ДЭШ ← →', '#7fd8ff');
-  drawCooldown(c, cx, pad + 30, cw, ch, 1 - P.shieldCD / 2.6, 'ШЛЯПКА S', '#ffe9a8');
+  drawCooldown(c, cx, pad + 4, cw, ch, 1 - P.dashCD / (TOUCHUI ? 0.42 : 0.55), 'ДЭШ ← →', '#7fd8ff');
+  drawCooldown(c, cx, pad + 30, cw, ch, 1 - P.shieldCD / 2.0, 'ШЛЯПКА S', '#ffe9a8');
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
 }
 

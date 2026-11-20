@@ -188,6 +188,7 @@ var __updBecoming = function (dt) {
       if (SFXOK) { try { SFX.music('unc1'); } catch (e) {} }
       G.shake = Math.max(G.shake, 5);
       banner('СВЕТ ГАСНЕТ');
+      if (typeof playIntroSample === 'function') playIntroSample();
     }
     // ---- 10 s: Bob arrives, the scream and the first face ----
     if (!UNC.started && G.time >= BECOMING_DELAY) {
@@ -198,8 +199,7 @@ var __updBecoming = function (dt) {
     if (UNC.started && !BOB.on) {
       UNC.floor = 1;
       if (UNC.stage < 1) uncannyAdd(16);   // the first stage of horror starts the moment the timer ends
-      if (SFXOK) { try { SFX.play('stinger'); } catch (e) {} }
-      if (typeof triggerScare === 'function') triggerScare(1);   // the first face fills the screen
+      if (typeof triggerScare === 'function') triggerScare(1);   // reveal: face + sampled scream   // the first face fills the screen
       if (!BOB.on) bobSpawn();
       P.iframe = Math.max(P.iframe, 2.2);   // grace right after the reveal
       BOB.armed = 0;                        // and a wind-up before the first beam

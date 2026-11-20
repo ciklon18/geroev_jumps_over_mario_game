@@ -2,9 +2,14 @@
    Классический скрипт, подключается после becoming.js. Работает и в базовом режиме. */
 'use strict';
 
-var FACES = new Image();
-FACES.src = 'assets/faces.png';
-var FACES_FRAMES = 3;      // полоса из 3 лиц в assets/faces.png
+// The seven jumpscare faces cut straight out of the meme clip.
+var FACE_LIST = ['bob', 'glasses', 'stare', 'mouth', 'skull', 'scream', 'void'];
+var FACE_IMGS = FACE_LIST.map(function (n) {
+  var im = new Image();
+  im.src = 'assets/scare/' + n + '.jpg';
+  return im;
+});
+var FACES_FRAMES = FACE_LIST.length;
 
 var SCARE = {
   on: false,        // сейчас на экране
@@ -19,7 +24,30 @@ var SCARE = {
 
 // ------------------------------------------------------------------ звук
 // Три вида скримера, синтезированные на WebAudio (внешний файл не нужен).
+// --- sampled sounds: the actual meme clip -----------------------------------
+var SAMPLES = {};
+['scare_main', 'scare_deep', 'meme_intro'].forEach(function (k) {
+  var a = new Audio('assets/' + k + '.mp3');
+  a.preload = 'auto';
+  a.volume = k === 'meme_intro' ? 0.55 : 0.95;
+  SAMPLES[k] = a;
+});
+
+function playSample(kind) {
+  var a = SAMPLES[kind === 'deep' ? 'scare_deep' : 'scare_main'];
+  if (!a) return false;
+  try {
+    var c = a.cloneNode();          // overlapping hits: each scare gets its own voice
+    c.volume = a.volume;
+    var p = c.play();
+    if (p && p.catch) p.catch(function () {});
+    return true;
+  } catch (e) { return false; }
+}
+
 function scareSound(kind) {
+  // real clip first, synthesized scream only as a fallback
+  if (playSample(kind)) return;
   if (typeof SFX === 'undefined' || !SFXOK) return;
   try {
     if (kind === 'deep') SFX.play('screamDeep');
@@ -29,6 +57,10 @@ function scareSound(kind) {
 }
 
 // ------------------------------------------------------------------ вспышка
+document.addEventListener('pointerdown', function () {
+  for (var k in SAMPLES) { try { SAMPLES[k].load(); } catch (e) {} }
+}, { passive: true, once: true });
+
 function triggerScare(power) {
   var now = G.t;
   if (now - SCARE.showLast < 1.5) return;          // не спамим чаще 1.5 с
@@ -36,7 +68,7 @@ function triggerScare(power) {
   SCARE.on = true;
   SCARE.t = 0;
   SCARE.dur = 0.32 + Math.random() * 0.28;
-  SCARE.face = (Math.random() * FACES_FRAMES) | 0;
+  SCARE.face = (Math.random() * FACE_LIST.length) | 0;
   SCARE.scale = 0.95 + power * 0.9;
   SCARE.shake = 18 + power * 22;
   G.shake = Math.max(G.shake, SCARE.shake * 0.6);
@@ -65,6 +97,15 @@ function scheduleScare(dt) {
 }
 
 // ------------------------------------------------------------------ отрисовка
+function playIntroSample() {
+  try {
+    var c = SAMPLES.meme_intro.cloneNode();
+    c.volume = 0.5;
+    var p = c.play();
+    if (p && p.catch) p.catch(function () {});
+  } catch (e) {}
+}
+
 function drawScare(c) {
   if (!SCARE.on) return;
   var W = CV.width, H = CV.height;
@@ -77,9 +118,9 @@ function drawScare(c) {
   var sw = Math.min(W * 0.62, H * 0.95) * sx, sh = sw * 1.1;
   var cx = W / 2 + Math.sin(SCARE.t * 90) * 14;
   var cy = H / 2 + Math.cos(SCARE.t * 70) * 10;
-  if (FACES.complete && FACES.naturalWidth) {
-    var fw = FACES.naturalWidth / FACES_FRAMES;
-    c.drawImage(FACES, SCARE.face * fw, 0, fw, FACES.naturalHeight, cx - sw / 2, cy - sh / 2, sw, sh);
+  var img = FACE_IMGS[SCARE.face % FACE_IMGS.length];
+  if (img && img.complete && img.naturalWidth) {
+    c.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh);
   } else {
     // фолбэк, пока картинка не загрузилась: зловещий овал
     c.fillStyle = '#000';

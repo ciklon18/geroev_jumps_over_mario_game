@@ -28,6 +28,8 @@ function resize() {
   US = Math.min(CV.width / 960, CV.height / 540);
   UOX = (CV.width - 960 * US) / 2; UOY = (CV.height - 540 * US) / 2;
   if (G.mode === 'play' || G.mode === 'dead') P.y = Math.min(P.y, groundY());
+  if (G.mode === 'play' && M.x > VW) M.x = -80;   // never strand Mario off-screen after a resize
+  if (G.mode === 'play' && M.x > VW) M.x = -80;   // never strand Mario off-screen after a resize
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', function () { setTimeout(resize, 300); });
@@ -234,7 +236,7 @@ function startGame() {
   P.x = VW * 0.55; P.y = groundY(); P.vy = 0; P.dashT = 0; P.dashCD = 0;
   P.onGround = true; P.jumps = 0; P.shieldT = 0; P.shieldCD = 0; P.iframe = 0;
   P.face = 1; P.tilt = 0; P.squash = 0;
-  M.x = -140; M.y = groundY(); M.vy = 0; M.vx = 0; M.state = 'run'; M.timer = 0.7;
+  M.x = -140; M.y = groundY(); M.vy = 0; M.vx = 0; M.state = 'run'; M.timer = 0.7; M.speed = 275;
   M.onGround = true; M.jumps = 0; M.maxJumps = 1; M.feint = false; M.feintShown = false;
   playerSpores = 0;
   spawnTimer = 0.9; nextSpore = 0.5; nextPower = 14;
@@ -349,6 +351,7 @@ function updateMario(dt) {
 
   M.vy += GRAV * 0.9 * dt;
   M.x += M.vx * dt;
+  if (M.x > VW + 80) { M.x = VW + 80; M.vx = Math.min(M.vx, 0); }
   M.y += M.vy * dt;
 
   if (M.y >= gy) {
@@ -394,6 +397,10 @@ function updateMario(dt) {
 
 // ------------------------------------------------------------------- spawns
 function updateSpawns(dt) {
+  // hard safety: a Mario that ended up outside the field (resize / dash by / glitch) always comes back
+  if (M.x > VW + 60 || (M.x < -40 && M.vx < -50)) {
+    M.x = -90; M.vx = 0; M.vy = 0; M.state = 'run'; M.timer = 0.2;
+  }
   spawnTimer -= dt;
   if (spawnTimer <= 0 && M.state === 'run' && M.x < -70) {
     if (typeof uncannyAdd === 'function' && modOn()) uncannyAdd(1.2);
@@ -523,6 +530,9 @@ function update(dt) {
   if (P.x > VW - margin) { P.x = VW - margin; if (P.dashT > 0) P.dashT = 0; }
 
   updateMario(dt);
+  // watchdog: Mario hovering far right for >3 s means the run is stuck — reset him
+  if (M.x > VW - 60 && M.state !== 'air') { M.idleT = (M.idleT || 0) + dt; } else { M.idleT = 0; }
+  if (M.idleT > 3) { M.idleT = 0; M.x = -90; M.vx = 0; M.state = 'run'; M.timer = 0.2; }
   updateSpawns(dt);
 
   G.score += dt * 10 * G.speedMul;

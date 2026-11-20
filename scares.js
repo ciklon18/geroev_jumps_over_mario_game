@@ -26,14 +26,57 @@ var SCARE = {
 // Три вида скримера, синтезированные на WebAudio (внешний файл не нужен).
 // --- sampled sounds: the actual meme clip -----------------------------------
 var SAMPLES = {};
-['scare_main', 'scare_deep', 'meme_intro'].forEach(function (k) {
+['scare_main', 'scare_deep', 'meme_intro', 'meme_full'].forEach(function (k) {
   var a = new Audio('assets/' + k + '.mp3');
   a.preload = 'auto';
-  a.volume = k === 'meme_intro' ? 0.55 : 0.95;
+  a.volume = k === 'meme_full' ? 0.42 : (k === 'meme_intro' ? 0.55 : 0.95);
   SAMPLES[k] = a;
 });
 
+// ------------------------------------------------------------------ фоновая музыка
+// Everything the game asks for goes to the real clip; chiptune only if the sample fails.
+var BG = { el: null, muted: false, started: false };
+
+function bgStart() {
+  var a = SAMPLES.meme_full;
+  if (!a) return false;
+  try {
+    a.loop = true;
+    a.volume = BG.muted ? 0 : 0.42;
+    var p = a.play();
+    if (p && p.catch) {
+      // autoplay blocked until a gesture -> retry once on the next tap
+      p.catch(function () { BG.started = false; });
+      return true;
+    }
+    BG.started = true;
+    return true;
+  } catch (e) { return false; }
+}
+
+function bgStop() {
+  var a = SAMPLES.meme_full;
+  if (!a) return;
+  try { a.pause(); a.currentTime = 0; } catch (e) {}
+  BG.started = false;
+}
+
+function bgEnsure() {
+  var a = SAMPLES.meme_full;
+  if (!a || BG.muted) return;
+  if (a.paused) {
+    var p = a.play();
+    if (p && p.catch) p.catch(function () {});
+  }
+}
+
+function bgRunning() {
+  var a = SAMPLES.meme_full;
+  return !!(a && !a.paused && !a.ended);
+}
+
 function playSample(kind) {
+  bgEnsure();
   var a = SAMPLES[kind === 'deep' ? 'scare_deep' : 'scare_main'];
   if (!a) return false;
   try {
@@ -59,7 +102,29 @@ function scareSound(kind) {
 // ------------------------------------------------------------------ вспышка
 document.addEventListener('pointerdown', function () {
   for (var k in SAMPLES) { try { SAMPLES[k].load(); } catch (e) {} }
-}, { passive: true, once: true });
+  if (!bgRunning()) bgStart();      // mobile: first tap unlocks the audio
+}, { passive: true });
+document.addEventListener('keydown', function () {
+  if (!bgRunning()) bgStart();
+}, { passive: true });
+
+// route every background-music request to the real clip, chiptune is the fallback only
+(function () {
+  if (typeof SFX === 'undefined' || !SFX.music) return;
+  var origMusic = SFX.music;
+  SFX.music = function (on) {
+    if (on === false) { bgEnsure(); return; }   // "stop music" from the game no longer kills the clip
+    bgStart();
+  };
+  // and: if anything pauses the clip while a run is active, resume it
+  setInterval(function () {
+    if (typeof G !== 'undefined' && G.mode === 'play' && !BG.muted && SAMPLES.meme_full &&
+        SAMPLES.meme_full.paused && SAMPLES.meme_full.currentTime > 0) {
+      var p = SAMPLES.meme_full.play();
+      if (p && p.catch) p.catch(function () {});
+    }
+  }, 700);
+})();
 
 function triggerScare(power) {
   var now = G.t;
